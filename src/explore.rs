@@ -67,6 +67,23 @@ pub struct Report {
     pub terminal_states: usize,
     /// Each broken property, reported once, with the shortest path to it.
     pub violations: Vec<Violation>,
+    /// Every DISTINCT view judged, in discovery order — the corpus half of the
+    /// harness: a recorded set of states a REIMPLEMENTATION can be held to, in
+    /// another language or another framework, without sharing a line of code
+    /// with this one.
+    ///
+    /// Including the view of a state that CLOSED. That is a state an operator
+    /// sees, it is where "escape left the draft alone" lives, and a component
+    /// whose closing view differs from its open one — every settings panel —
+    /// has more of them than it has open states.
+    ///
+    /// [`Self::exhausted`] is what says whether this is all of them. It is the
+    /// SAME flag the violations are judged by, deliberately: this used to be a
+    /// second walk with a second flag, and the two disagreed about what "the
+    /// states" are — a corpus that is quietly a SUBSET, handed to a
+    /// reimplementation as the states it must satisfy, would pass something
+    /// that does less.
+    pub views: Vec<View>,
     /// True when the search stopped at a limit rather than because it ran out
     /// of new states. A capped search is a SAMPLE, and saying so is the
     /// difference between "nothing is wrong" and "nothing is wrong in the part
@@ -108,17 +125,6 @@ impl core::fmt::Display for Report {
         }
         Ok(())
     }
-}
-
-/// Every distinct view a component reached, and whether that is all of them.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Corpus {
-    /// The views, in discovery order.
-    pub views: Vec<View>,
-    /// False when the walk stopped at a limit. A corpus that is quietly a
-    /// SUBSET is the failure mode here: handed to a reimplementation as the
-    /// states it must satisfy, it would pass something that does less.
-    pub complete: bool,
 }
 
 /// Walks every reachable state of a component, checking properties.
@@ -189,9 +195,16 @@ impl Explorer {
         // paths is one defect, and forty copies of it buries the other three.
         let mut reported: HashSet<String> = HashSet::new();
 
+        // Distinct VIEWS, which is not the same set as distinct states: a
+        // fingerprint may be finer than the view (folded-in hidden state), and
+        // a closing state never enters `seen` at all.
+        let mut recorded: HashSet<View> = HashSet::new();
+
         let start = factory();
         let start_view = start.view();
         seen.insert(start.fingerprint());
+        recorded.insert(start_view.clone());
+        report.views.push(start_view.clone());
         report.states = 1;
         Self::check(
             properties,
@@ -249,7 +262,11 @@ impl Explorer {
                 if matches!(flow, Flow::Close(_)) {
                     // A closed component receives no more keys. Its final view
                     // is still a state worth judging — that is where "escape
-                    // left the draft alone" lives.
+                    // left the draft alone" lives — and still a state the
+                    // corpus must carry.
+                    if recorded.insert(after.clone()) {
+                        report.views.push(after.clone());
+                    }
                     report.terminal_states += 1;
                     Self::check(
                         properties,
@@ -263,6 +280,9 @@ impl Explorer {
 
                 if seen.insert(component.fingerprint()) {
                     report.states += 1;
+                    if recorded.insert(after.clone()) {
+                        report.views.push(after.clone());
+                    }
                     Self::check(
                         properties,
                         &Observation::State { view: &after },
@@ -301,51 +321,5 @@ impl Explorer {
                 });
             }
         }
-    }
-
-    /// Every distinct view a component can reach, in discovery order.
-    ///
-    /// The corpus half of the harness: a recorded set of states is data a
-    /// REIMPLEMENTATION can be held to, in another language or another
-    /// framework, without sharing a line of code with this one.
-    ///
-    /// Returns a [`Corpus`] rather than a bare `Vec` for the same reason
-    /// [`Report`] carries `exhausted`: this walk can be truncated by either
-    /// limit, and a truncated corpus handed to a reimplementation as "the
-    /// states" would understate what it must satisfy — a conformance suite
-    /// that is quietly a subset is worse than one that admits its size.
-    pub fn states<C: Component>(&self, factory: impl Fn() -> C) -> Corpus {
-        let mut seen: HashSet<Fingerprint> = HashSet::new();
-        let mut views = Vec::new();
-        let mut queue: VecDeque<Vec<Key>> = VecDeque::new();
-
-        let start = factory();
-        seen.insert(start.fingerprint());
-        views.push(start.view());
-        queue.push_back(Vec::new());
-
-        let mut complete = true;
-        while let Some(path) = queue.pop_front() {
-            if path.len() >= self.max_depth || views.len() >= self.max_states {
-                complete = false;
-                break;
-            }
-            for key in &self.alphabet {
-                let mut component = factory();
-                for replayed in &path {
-                    component.handle(*replayed);
-                }
-                if matches!(component.handle(*key), Flow::Close(_)) {
-                    continue;
-                }
-                if seen.insert(component.fingerprint()) {
-                    views.push(component.view());
-                    let mut next = path.clone();
-                    next.push(*key);
-                    queue.push_back(next);
-                }
-            }
-        }
-        Corpus { views, complete }
     }
 }

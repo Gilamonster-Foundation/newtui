@@ -44,7 +44,7 @@ mod property;
 mod view;
 
 pub use component::{Component, Fingerprint, Flow};
-pub use explore::{Corpus, Explorer, Report, Violation};
+pub use explore::{Explorer, Report, Violation};
 pub use key::Key;
 pub use property::{properties, Named, Observation, Property};
 pub use view::{Row, View};
@@ -56,6 +56,7 @@ mod tests {
     /// A dial that CLAMPS — the shape most rows in this line have.
     struct Dial {
         level: u8,
+        done: Option<bool>,
     }
 
     impl Component for Dial {
@@ -69,8 +70,14 @@ mod tests {
                     self.level = (self.level + 1).min(3);
                     Flow::Stay
                 }
-                Key::Enter => Flow::Close(true),
-                Key::Esc => Flow::Close(false),
+                Key::Enter => {
+                    self.done = Some(true);
+                    Flow::Close(true)
+                }
+                Key::Esc => {
+                    self.done = Some(false);
+                    Flow::Close(false)
+                }
                 _ => Flow::Stay,
             }
         }
@@ -82,12 +89,19 @@ mod tests {
                         .adjustable()
                         .selected(),
                 )
-                .footer("←→ change · Enter apply · Esc cancel")
+                .footer(match self.done {
+                    None => "←→ change · Enter apply · Esc cancel",
+                    Some(true) => "saved",
+                    Some(false) => "discarded",
+                })
         }
     }
 
     fn dial() -> Dial {
-        Dial { level: 0 }
+        Dial {
+            level: 0,
+            done: None,
+        }
     }
 
     fn acceptance() -> Vec<Box<dyn Property>> {
@@ -287,24 +301,57 @@ mod tests {
     /// can be held to without sharing code with this one.
     #[test]
     fn the_state_corpus_is_recordable() {
-        let corpus = Explorer::new(Key::navigation()).states(dial);
-        assert_eq!(corpus.views.len(), 4);
-        assert!(corpus.complete, "and it is all of them, which is the claim");
-        let values: Vec<&str> = corpus
+        let report = check(dial);
+        assert!(report.exhausted, "and it is all of them: {report}");
+        let open: Vec<&str> = report
             .views
             .iter()
+            .filter(|v| v.footer.starts_with('\u{2190}'))
             .map(|v| v.rows[0].value.as_str())
             .collect();
-        assert_eq!(values, ["0", "1", "2", "3"], "in discovery order");
+        assert_eq!(open, ["0", "1", "2", "3"], "in discovery order");
 
-        // A truncated corpus says so. Handed to a reimplementation as "the
-        // states", a silent subset would pass something that does less — the
-        // same false-completeness class as a capped search reporting itself
-        // exhausted, one function over.
-        let capped = Explorer::new(Key::navigation()).max_states(2).states(dial);
+        // A truncated corpus says so, and it is the SAME flag that says the
+        // search was truncated, because it is the same walk. Handed to a
+        // reimplementation as "the states", a silent subset would pass
+        // something that does less.
+        let capped = Explorer::new(Key::navigation())
+            .max_states(2)
+            .explore(dial, &[]);
         assert!(
-            !capped.complete,
+            !capped.exhausted,
             "a capped corpus is a subset, and admits it"
         );
+    }
+
+    /// **A state that CLOSED is a state the corpus carries** — bug 3a.
+    ///
+    /// The corpus used to come from a second walk, `Explorer::states`, which
+    /// `continue`d past every closing view without recording it while its
+    /// `complete` flag — cleared at exactly one site, the numeric limit —
+    /// stayed true. So `complete` meant "no cap was hit" while its doc promised
+    /// "not a subset", and this dial reported a COMPLETE corpus of 4 views out
+    /// of 6 reachable. Every settings panel has a closing view that differs
+    /// from its open one, so the trigger is not exotic; it is the motivating
+    /// component.
+    ///
+    /// The fix was to delete the second walk. One walk, one completeness flag,
+    /// and the law is satisfied by construction rather than by two functions
+    /// remembering to agree.
+    #[test]
+    fn the_corpus_holds_the_states_that_closed() {
+        let report = check(dial);
+        assert!(report.exhausted, "nothing capped this walk: {report}");
+        let footers: Vec<&str> = report.views.iter().map(|v| v.footer.as_str()).collect();
+        assert!(
+            footers.contains(&"saved") && footers.contains(&"discarded"),
+            "a corpus of {} views calling itself complete, missing the states \
+             an operator ends in: {footers:?}",
+            report.views.len()
+        );
+        // Four levels, each of which the operator can leave two ways: 4 open
+        // views and 8 closing ones. The deleted walk called 4 of the 12
+        // "complete".
+        assert_eq!(report.views.len(), 12, "4 open, 8 closing: {footers:?}");
     }
 }
