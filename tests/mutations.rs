@@ -29,7 +29,7 @@
 //! to cargo, so running it inside every ordinary test run would nest builds).
 //! `just mutations` runs it, and `just check` includes that.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -96,7 +96,7 @@ const MUTATIONS: &[Mutation] = &[
         } else {
             self.extra.push(more.to_string());
         }",
-        expect_red: "component::tests::no_two_distinct_states_can_share_a_fingerprint",
+        expect_red: "component::tests::structural_fingerprints_keep_their_boundaries",
         cargo_args: &[],
     },
     Mutation {
@@ -359,66 +359,119 @@ fn every_registered_guard_is_pinned_by_a_mutation() {
     );
 }
 
+/// Every `.rs` file beneath `src/` and `tests/`, in a deterministic order.
+///
+/// **Recursive, and that is load-bearing.** This used to be one `read_dir` per
+/// directory, which reads only the immediate children: a module in
+/// `src/component/vi.rs` — the shape this crate is heading for as components
+/// are extracted — was not scanned, and every guard in it was silently
+/// unregistered. The scan would still pass, because an unregistered guard is
+/// invisible in exactly the direction the registry cannot see. A discovery
+/// walk that quietly covers less than it says is the class this file exists to
+/// pin, in the file that pins it.
+///
+/// `target/` is excluded: a mutant copy of this crate lives there, and scanning
+/// it would register every guard twice under a path that is not source.
+///
+/// Symlinks are not followed — a link pointing at an ancestor is the ordinary
+/// way a recursive walk becomes an infinite one, and no source file in this
+/// crate needs to be reached through one.
+///
+/// `tests/mutations.rs` is skipped: its `expect_red` strings are the other side
+/// of the comparison, and a scan that read them would agree with itself.
+fn rust_sources(root: &Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    let mut pending: Vec<PathBuf> = ["src", "tests"].iter().map(|dir| root.join(dir)).collect();
+
+    while let Some(dir) = pending.pop() {
+        let entries = std::fs::read_dir(&dir)
+            .unwrap_or_else(|err| panic!("{} is readable: {err}", dir.display()));
+        for entry in entries {
+            let path = entry.expect("a source entry").path();
+            // `symlink_metadata` does NOT traverse the link, so a link to an
+            // ancestor is seen as a link and skipped rather than descended.
+            let kind = std::fs::symlink_metadata(&path)
+                .unwrap_or_else(|err| panic!("{} is stat-able: {err}", path.display()))
+                .file_type();
+            if kind.is_symlink() {
+                continue;
+            }
+            let name = path.file_name().and_then(std::ffi::OsStr::to_str);
+            if kind.is_dir() {
+                if name != Some("target") {
+                    pending.push(path);
+                }
+            } else if path.extension().and_then(std::ffi::OsStr::to_str) == Some("rs")
+                && name != Some("mutations.rs")
+            {
+                found.push(path);
+            }
+        }
+    }
+
+    // The walk order depends on the filesystem; the result must not.
+    found.sort();
+    found
+}
+
 /// Every `// GUARD:` marker in the crate's own sources.
 ///
 /// The marker names the guard as `cargo test` takes it, and must sit directly
 /// above the declaration it names — checked, so that renaming the test without
 /// the marker fails here instead of silently deregistering the guard.
-///
-/// `tests/mutations.rs` is skipped: its `expect_red` strings are the other side
-/// of the comparison, and a scan that read them would agree with itself.
 fn registered_guards(root: &Path) -> BTreeSet<String> {
     const MARKER: &str = "// GUARD: ";
-    let mut registered = BTreeSet::new();
+    // Keyed by filter, valued by where it was registered, so that the same
+    // guard claimed from two files is a named collision rather than a silent
+    // set-insert that drops one of them.
+    let mut registered: BTreeMap<String, PathBuf> = BTreeMap::new();
     let mut files = 0;
 
-    for dir in ["src", "tests"] {
-        for entry in std::fs::read_dir(root.join(dir)).expect("a source directory is readable") {
-            let path = entry.expect("a source entry").path();
-            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("rs")
-                || path.file_name().and_then(std::ffi::OsStr::to_str) == Some("mutations.rs")
-            {
+    for path in rust_sources(root) {
+        let text = std::fs::read_to_string(&path).expect("a source file is readable");
+        assert!(
+            !text.trim().is_empty(),
+            "{} is empty, so anything this scan concludes from it is vacuous",
+            path.display()
+        );
+        files += 1;
+
+        let lines: Vec<&str> = text.lines().collect();
+        for (at, line) in lines.iter().enumerate() {
+            let Some((_, rest)) = line.split_once(MARKER) else {
                 continue;
-            }
-            let text = std::fs::read_to_string(&path).expect("a source file is readable");
-            assert!(
-                !text.trim().is_empty(),
-                "{} is empty, so anything this scan concludes from it is \
-                 vacuous",
+            };
+            let filter = rest
+                .split_whitespace()
+                .next()
+                .expect("a guard marker names the test it registers");
+            // The declaration it sits above, past any attributes.
+            let declared = lines[at + 1..]
+                .iter()
+                .take(4)
+                .find_map(|line| declared_item(line))
+                .unwrap_or_else(|| {
+                    panic!(
+                        "the marker for `{filter}` in {} is not above a \
+                         declaration",
+                        path.display()
+                    )
+                });
+            assert_eq!(
+                filter.rsplit("::").next().expect("a non-empty filter"),
+                declared,
+                "the marker in {} registers `{filter}` but sits above \
+                 `{declared}` — a rename must not deregister a guard quietly",
                 path.display()
             );
-            files += 1;
-
-            let lines: Vec<&str> = text.lines().collect();
-            for (at, line) in lines.iter().enumerate() {
-                let Some((_, rest)) = line.split_once(MARKER) else {
-                    continue;
-                };
-                let filter = rest
-                    .split_whitespace()
-                    .next()
-                    .expect("a guard marker names the test it registers");
-                // The declaration it sits above, past any attributes.
-                let declared = lines[at + 1..]
-                    .iter()
-                    .take(4)
-                    .find_map(|line| declared_item(line))
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "the marker for `{filter}` in {} is not above a \
-                             declaration",
-                            path.display()
-                        )
-                    });
-                assert_eq!(
-                    filter.rsplit("::").next().expect("a non-empty filter"),
-                    declared,
-                    "the marker in {} registers `{filter}` but sits above \
-                     `{declared}` — a rename must not deregister a guard \
-                     quietly",
+            if let Some(first) = registered.insert(filter.to_string(), path.clone()) {
+                panic!(
+                    "`{filter}` is registered twice, in {} and in {} — one \
+                     mutation cannot pin two guards, and a set-insert would \
+                     have dropped one of them without a word",
+                    first.display(),
                     path.display()
                 );
-                registered.insert(filter.to_string());
             }
         }
     }
@@ -428,7 +481,61 @@ fn registered_guards(root: &Path) -> BTreeSet<String> {
         !registered.is_empty(),
         "no guard is registered anywhere, so this scan means nothing"
     );
-    registered
+    registered.into_keys().collect()
+}
+
+/// A guard in a nested module is discovered.
+///
+/// The regression for a non-recursive `read_dir`. Under the old scan a
+/// directory beneath `src/` failed the `.rs` extension test and was skipped
+/// whole, so `src/component/vi.rs` — the shape this crate takes as soon as a
+/// component is extracted into its own module — could carry any number of
+/// `// GUARD:` markers and register none of them.
+///
+/// It is checked against a FIXTURE rather than this crate's own tree, because
+/// a scan of a flat tree cannot tell the two implementations apart: with no
+/// nested source file in the repository, the recursive and non-recursive walks
+/// return the same set, and a test over the real tree would pass under the bug
+/// it exists to catch.
+#[test]
+fn a_guard_in_a_nested_module_is_registered() {
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/guard-scan");
+    let _ = std::fs::remove_dir_all(&fixture);
+    std::fs::create_dir_all(fixture.join("src/component")).expect("the fixture is writable");
+    std::fs::create_dir_all(fixture.join("tests")).expect("the fixture is writable");
+
+    // A flat file with a marker, so the fixture is not vacuous in the other
+    // direction: a walk that found NOTHING would trip the empty-scan assert
+    // rather than the one this test is about.
+    std::fs::write(
+        fixture.join("src/lib.rs"),
+        "// GUARD: tests::a_flat_guard\n#[test]\nfn a_flat_guard() {}\n",
+    )
+    .expect("the fixture is writable");
+    std::fs::write(
+        fixture.join("src/component/vi.rs"),
+        "// GUARD: tests::a_nested_guard\n#[test]\nfn a_nested_guard() {}\n",
+    )
+    .expect("the fixture is writable");
+    std::fs::write(fixture.join("tests/leaf.rs"), "// nothing to register\n")
+        .expect("the fixture is writable");
+
+    let registered = registered_guards(&fixture);
+
+    assert!(
+        registered.contains("tests::a_nested_guard"),
+        "a `// GUARD:` marker in src/component/vi.rs was not registered — the \
+         scan is not walking nested directories, so every guard in an \
+         extracted component is invisible to the registry. Found: \
+         {registered:?}"
+    );
+    assert!(
+        registered.contains("tests::a_flat_guard"),
+        "the flat marker was not registered either, so this fixture proves \
+         nothing about nesting: {registered:?}"
+    );
+
+    std::fs::remove_dir_all(&fixture).expect("the fixture is removable");
 }
 
 /// The name declared by a `fn` or `struct` line, if it is one.
