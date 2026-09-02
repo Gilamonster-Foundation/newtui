@@ -178,9 +178,10 @@ mod tests {
         }
 
         let report = check(|| Door { walked: 0 });
-        let violation = report
-            .violation("only adjustable rows move")
-            .unwrap_or_else(|| panic!("the door's dialling must be caught: {report}"));
+        let found = report.violations_named("only adjustable rows move");
+        let [violation] = found.as_slice() else {
+            panic!("the door's dialling must be caught, exactly once: {report}")
+        };
         assert_eq!(
             violation.path,
             vec![Key::Right],
@@ -215,9 +216,10 @@ mod tests {
         }
 
         let report = check(|| Trap { deep: false });
-        let violation = report
-            .violation("escape always closes without applying")
-            .unwrap_or_else(|| panic!("the trap must be caught: {report}"));
+        let found = report.violations_named("escape always closes without applying");
+        let [violation] = found.as_slice() else {
+            panic!("the trap must be caught, exactly once: {report}")
+        };
         assert_eq!(violation.path, vec![Key::Down, Key::Esc], "{violation}");
     }
 
@@ -502,6 +504,40 @@ mod tests {
             ["the FIRST claim broke", "the SECOND claim broke"],
             "a property silenced by a NAME COLLISION is never checked at any \
              depth, in a report that calls itself exhaustive: {report}"
+        );
+    }
+
+    /// **A named lookup returns EVERY violation with that name**, not the
+    /// first one.
+    ///
+    /// The two halves have to agree. R5 made retirement per POSITION precisely
+    /// so that two claims sharing a name are two findings — and a singular
+    /// `violation(name)` that returned the first would then hide the second
+    /// behind the same name collision, one accessor away from the bug R5 had
+    /// just fixed. `Named::new` takes a free-form string with no uniqueness
+    /// check, so this is reachable by composing two acceptance sets, which is
+    /// the crate's distribution story.
+    #[test]
+    fn a_named_lookup_returns_every_violation_with_that_name() {
+        let first = Named::new("invariant", |_: &Observation<'_>| {
+            PropertyOutcome::Violated("the FIRST claim broke".to_string())
+        });
+        let second = Named::new("invariant", |_: &Observation<'_>| {
+            PropertyOutcome::Violated("the SECOND claim broke".to_string())
+        });
+        let report = Explorer::new(Key::navigation()).explore(dial, &[&first, &second]);
+
+        let found = report.violations_named("invariant");
+        let details: Vec<&str> = found.iter().map(|v| v.detail.as_str()).collect();
+        assert_eq!(
+            details,
+            ["the FIRST claim broke", "the SECOND claim broke"],
+            "a lookup that returns the first match hides the second behind the \
+             very name collision R5 stopped silencing it: {report}"
+        );
+        assert!(
+            report.violations_named("no such claim").is_empty(),
+            "and a name nothing broke under is empty, not a panic: {report}"
         );
     }
 

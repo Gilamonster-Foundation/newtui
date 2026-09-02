@@ -241,14 +241,25 @@ impl Report {
         matches!(self.verdict(), Verdict::Clean)
     }
 
-    /// The violation of a named property, if it broke.
+    /// Every violation of a named property.
     ///
     /// A lookup, deliberately — not an emptiness test. "Did THIS claim break"
     /// is a question with an honest answer in any run; "did nothing break" is
     /// the one that needs [`Report::verdict`].
+    ///
+    /// Plural, because R5 made it possible for it to be: retirement is keyed on
+    /// a property's POSITION in the set, so two distinct claims that happen to
+    /// share a name are two independent findings and both are reported. A
+    /// singular `violation(name)` returning the first was inconsistent with
+    /// that the moment it landed — it would have hidden the second match in the
+    /// exact place the crate had just made a second match reachable, and hiding
+    /// a finding behind a name collision is the bug R5 fixed.
     #[must_use]
-    pub fn violation(&self, property: &str) -> Option<&Violation> {
-        self.violations.iter().find(|v| v.property == property)
+    pub fn violations_named(&self, property: &str) -> Vec<&Violation> {
+        self.violations
+            .iter()
+            .filter(|v| v.property == property)
+            .collect()
     }
 }
 
