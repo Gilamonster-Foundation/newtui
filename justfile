@@ -4,7 +4,7 @@
 # Keep the three in step: this file, that workflow, and .githooks/pre-push.
 
 # Format, lint, test and document — the whole gate.
-check: fmt clippy test doc leaf
+check: fmt clippy test doc leaf mutations
 
 # Verify formatting (does not modify files).
 fmt:
@@ -30,6 +30,12 @@ doc:
 # The leaf invariant — the runtime closure stays empty. See tests/leaf.rs.
 leaf:
     cargo test --test leaf
+
+# Every guard has a defect it provably catches. Named target because
+# tests/mutations.rs is `test = false` — it builds a mutated copy of the crate
+# per row, so it must not run inside every ordinary `cargo test`.
+mutations:
+    cargo test --test mutations -- --nocapture
 
 # Regenerate every demo GIF from its tape (needs `vhs`).
 demos:

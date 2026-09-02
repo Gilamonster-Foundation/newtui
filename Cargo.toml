@@ -60,3 +60,13 @@ ratatui = { version = "0.29", optional = true }
 # crate's central claim is checked at all.
 [dev-dependencies]
 serde_json = "1"
+
+# The expected-red runner builds a mutated COPY of this crate and runs a guard
+# inside it, so it shells out to cargo. `test = false` keeps it out of ordinary
+# `cargo test` runs — otherwise every `cargo test` would nest a build per
+# mutation, twice over, once per feature setting. `just mutations` (and so
+# `just check`) runs it by naming the target.
+[[test]]
+name = "mutations"
+path = "tests/mutations.rs"
+test = false
