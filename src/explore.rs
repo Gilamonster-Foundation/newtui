@@ -65,8 +65,20 @@ pub struct Report {
     /// States that closed the component — a search does not continue past one,
     /// because a closed component is not there to receive another key.
     pub terminal_states: usize,
+    /// How many properties the walk was given.
+    ///
+    /// In the report because a report that cannot say this cannot tell
+    /// "17,280 states against three properties" from "17,280 states against
+    /// nothing", and the second is a walk that judged nothing at all.
+    pub properties_checked: usize,
     /// Each broken property, reported once, with the shortest path to it.
-    pub violations: Vec<Violation>,
+    ///
+    /// PRIVATE on purpose, and this is the whole of bug 3c: while it was
+    /// public, `assert!(report.violations.is_empty())` was the shortest thing
+    /// to write, it is what the README published, and it is exactly the
+    /// assertion that cannot refuse a capped run. Read them through
+    /// [`Report::verdict`], where the completeness half is not optional.
+    violations: Vec<Violation>,
     /// Every DISTINCT view judged, in discovery order — the corpus half of the
     /// harness: a recorded set of states a REIMPLEMENTATION can be held to, in
     /// another language or another framework, without sharing a line of code
@@ -91,14 +103,90 @@ pub struct Report {
     pub exhausted: bool,
 }
 
+/// What a report AMOUNTS TO — the three answers a walk can give.
+///
+/// A type rather than a pair of booleans because the weak assertion has to be
+/// unwriteable, not merely discouraged. `violations.is_empty()` is one
+/// conjunct of two, it is the conjunct a truncated run satisfies for free, and
+/// while it was reachable it is what the crate's own README published as the
+/// idiom to copy. Here the third answer exists, so a consumer who wants the
+/// violations has to say what they mean by clean.
+///
+/// (`stateright`'s `assert_no_discovery` folds the same completeness conjunct
+/// inside the helper for the same reason. Two designs, one mechanism.)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Verdict<'a> {
+    /// The search finished, it checked something, and everything held.
+    Clean,
+    /// A property did not hold, in a search that finished.
+    Violated(&'a [Violation]),
+    /// The run cannot clear the component, and says why. Any violations it
+    /// did find are real; its SILENCE is what carries no weight.
+    Incomplete {
+        /// Why this walk proves nothing about what it did not report.
+        reason: &'static str,
+        /// What it found before it stopped — findings, not a clean bill.
+        violations: &'a [Violation],
+    },
+}
+
 impl Report {
+    /// What this walk amounts to.
+    ///
+    /// `Incomplete` outranks `Violated`: a truncated or vacuous run's findings
+    /// are real, but the absence of further findings is not evidence, and the
+    /// arm a consumer matches should say the weaker thing.
+    #[must_use]
+    pub fn verdict(&self) -> Verdict<'_> {
+        if let Some(reason) = self.incomplete_because() {
+            return Verdict::Incomplete {
+                reason,
+                violations: &self.violations,
+            };
+        }
+        if self.violations.is_empty() {
+            Verdict::Clean
+        } else {
+            Verdict::Violated(&self.violations)
+        }
+    }
+
+    /// Why this walk proves nothing, if it does not.
+    ///
+    /// Three ways a search can come back with no violations and no standing to
+    /// say so. The first is a capped search. The other two are the DEGENERATE
+    /// runs — nothing checked, and nothing walked — which are the vacuous
+    /// green in its purest form: both of them used to be `is_clean() == true`.
+    fn incomplete_because(&self) -> Option<&'static str> {
+        if !self.exhausted {
+            return Some("STOPPED AT A LIMIT — this is a sample, not a proof");
+        }
+        if self.properties_checked == 0 {
+            return Some("NO PROPERTY WAS CHECKED — the walk judged nothing");
+        }
+        if self.transitions == 0 {
+            return Some("NO KEY WAS EVER APPLIED — the alphabet was empty");
+        }
+        None
+    }
+
     /// Did the search prove what it set out to?
     ///
-    /// Both halves matter: no violations, AND the search actually finished. A
-    /// capped run with no violations has not cleared the component.
+    /// Every half matters: no violations, AND the search finished, AND it
+    /// checked something, AND it walked somewhere.
     #[must_use]
     pub fn is_clean(&self) -> bool {
-        self.violations.is_empty() && self.exhausted
+        matches!(self.verdict(), Verdict::Clean)
+    }
+
+    /// The violation of a named property, if it broke.
+    ///
+    /// A lookup, deliberately — not an emptiness test. "Did THIS claim break"
+    /// is a question with an honest answer in any run; "did nothing break" is
+    /// the one that needs [`Report::verdict`].
+    #[must_use]
+    pub fn violation(&self, property: &str) -> Option<&Violation> {
+        self.violations.iter().find(|v| v.property == property)
     }
 }
 
@@ -106,14 +194,14 @@ impl core::fmt::Display for Report {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         writeln!(
             f,
-            "{} states, {} transitions, {} terminal{}",
+            "{} states, {} transitions, {} terminal, {} properties{}",
             self.states,
             self.transitions,
             self.terminal_states,
-            if self.exhausted {
-                ""
-            } else {
-                " (STOPPED AT A LIMIT — this is a sample, not a proof)"
+            self.properties_checked,
+            match self.incomplete_because() {
+                Some(reason) => format!(" ({reason})"),
+                None => String::new(),
             }
         )?;
         if self.violations.is_empty() {
@@ -186,6 +274,7 @@ impl Explorer {
         // that bug.
         let mut report = Report {
             exhausted: true,
+            properties_checked: properties.len(),
             ..Report::default()
         };
         let mut seen: HashSet<Fingerprint> = HashSet::new();
