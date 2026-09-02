@@ -32,14 +32,40 @@ because writing it down is what keeps `spec` from being read as `proven`:
   own definitional shape: a constructive witness, or a result that needed an
   argument rather than unfolding.
 
-`#print axioms` on every theorem below reports **no axiom dependencies at
-all** — not even `propext`. Every `decide` is a kernel reduction; the
-compiled-code tactic that would add `Lean.ofReduceBool` to the trusted base is
-refused by `scripts/check-lean-proofs.sh`.
+### The trusted base, and how it is kept
+
+Every theorem below reports **no axiom dependencies at all** — not even
+`propext`. `quotStep` is the one exception: it is built on `Quotient.lift`,
+whose soundness is *stated* in terms of `Quot.sound`, one of Lean's three
+kernel axioms, so it reports `[Quot.sound]`. That is not something a different
+proof avoids, and it is recorded rather than hidden.
+
+**That paragraph is not a promise, it is a build artifact.** It used to be a
+promise: `scripts/check-lean-proofs.sh` rejected `sorry` and `native_decide`
+only, `#print axioms` printed an `info` message, and a theorem that acquired a
+dependency tomorrow would print something new while the gate stayed green. The
+claim was *reported*, never *enforced*, and preservation is the whole point.
+Three mechanisms now hold it:
+
+1. every audited declaration carries `#guard_msgs in #print axioms <name>` in
+   `Fingerprint.lean`, so the expected message is compared during `lake build`
+   and a mismatch is an **error**;
+2. `check-lean-proofs.sh` rejects an `axiom` declaration, and requires every
+   `theorem` in the tree to have an audit line — a subset audit is just a place
+   for the next theorem to land unwatched;
+3. `scripts/check-lean-mutations.sh` seeds four mutations and asserts each goes
+   red. One of them (a proof routed through `Classical.byContradiction`) is
+   invisible to every grep and is caught **only** by the pinned message. That is
+   the row that shows `#guard_msgs` is doing work.
+
+Every `decide` is a kernel reduction; the compiled-code tactic that would add
+`Lean.ofReduceBool` to the trusted base is refused by the same script.
 
 | Theorem | Status | What it establishes | What it does **not** establish |
 |---|---|---|---|
-| `ofView_consistent` | **proven** (definitional, but the definition was checked against `component.rs:48-63`) | Under the default fingerprint, the observation half of the congruence holds by construction — so the cheap guard everyone reaches for (record the `View` beside the `Fingerprint`, assert on a collision) **cannot fire** on a component that took the default. This changed a decision: two designs were about to bill that guard as closing the observation half outright. | Anything about separator injection. `of_view` joins fields with `\u{1f}`/`\u{1e}`, and a row label *containing* those bytes is the one way it fails. That is a Rust property test, not a theorem. |
+| `ofEncodedView_consistent_of_injective` | **proven** | The Rust default `Fingerprint::of_view` is `fp = enc ∘ view` for a serialiser `enc`, and its observation-consistency is exactly `enc` being **injective**. The obligation `of_view`'s doc comment does not state, stated. | That newtui's `enc` *is* injective. It is not — see the next row. |
+| `smudge_not_consistent` | **proven, constructive** | `component.rs:48` joins the title and the footer with U+001F, so `("a\u{1f}b","c")` and `("a","b\u{1f}c")` serialise identically while showing different things. The shipped default is **not** observation-consistent, and the collision guard *would* fire on it. Reproduced against the crate, then written down as a term. | That a real component hits it. Nothing in the type system forbids U+001F in a title; nothing observed one either. |
+| `ofView_consistent` | **proven** (`enc = id`) | With an injective default — the structural `Fingerprint` the sibling branch `fix/false-completeness-class` is building, a `View` base plus a `Vec<String>` of extras — the observation half holds by construction, so the cheap guard (record the `View`, assert on a collision) cannot fire on a component that took the default. This changed a decision: two designs were about to bill that guard as closing the observation half outright. | **Anything about `src/` as it stands today.** This is the theorem that used to be billed "checked against `component.rs:48-63`" and was not: the check missed that `Fingerprint` is a `String`. It becomes a live correspondence when the sibling branch lands, and not before. |
 | `creep_not_consistent` | **proven, constructive** | The collision guard is **not** vacuous: it fires on a `Fingerprint::of(..)` seed, which is `seed.to_string()` and therefore arbitrary, and on `Fingerprint::and(..)`, which the crate's own doc tells consumers to reach for. That is the population where the measured false green lives — keep the guard. | That any shipped component has a `creep`-shaped fingerprint. |
 | `sneak_consistent`, `sneak_not_transfers`, `sneak_loses_a_reachable_view` | **proven, constructive** | The two halves of the congruence are independent, and the half a collision guard cannot see (`Transfers`) is where the exposure is. `sneak` passes every collision check and still merges two states that show different things one key later. These constrain because they are *terms*, not because a tactic closed a goal. | That any shipped component is or is not a congruence. That is undecidable in general — it is a bisimulation over the whole reachable graph. |
 | `consistency_is_not_congruence` | **proven, constructive** | The previous row as one term: `Consistent sneak ∧ ¬ IsCongruence sneak`. | — |
@@ -63,26 +89,42 @@ but is expected to have type
 error: build failed
 ```
 
-## The stub gate is real, and here is the proof
+## The proof gates are real, and the proof is executed, not transcribed
 
-`scripts/check-lean-proofs.sh` greps this tree for unproven and
-non-kernel-checked declarations. It exists because **`lake build` exits 0 on an
-unproven theorem** — verified on this machine, not assumed:
+`scripts/check-lean-mutations.sh` seeds four mutations into a copy of this tree
+and asserts each one goes red. It replaces a hand-run transcript that used to
+live in this section — a table someone ran once is exactly the artifact this
+whole layer exists to refuse.
 
-```
-$ printf '\ntheorem seeded_stub : 1 = 1 := by <stub>\n' >> Newtui/Fingerprint.lean
-$ lake build >/dev/null 2>&1; echo $?
-0                       # green, with an unproven theorem in the tree
-$ ../scripts/check-lean-proofs.sh; echo $?
-.../Newtui/Fingerprint.lean:157:theorem seeded_stub : 1 = 1 := by <stub>
-1                       # the gate catches it
-```
+| | mutation | must be caught by |
+|---|---|---|
+| M1 | an unproven declaration | `check-lean-proofs.sh`, needle 1 |
+| M2 | a declared assumption | `check-lean-proofs.sh`, needle 3a |
+| M3 | a theorem with no audit line | `check-lean-proofs.sh`, needle 3b |
+| M4 | a proof routed through `Classical` | **`lake build`**, on `#guard_msgs` |
 
-The gate is deliberately **comment-blind**: it does not parse Lean, so it also
-fires on a mention inside a comment — which is why this README spells the two
-needles obliquely and the `.lean` file never names them at all. That is the
-right trade; the alternative is a comment-aware scanner whose bugs all fail
-open. If a hit is a mention, reword the comment. Never weaken the needle.
+**M4 is the one that matters**, and the reason the other three are not enough.
+It declares nothing, so M2's grep is silent; it carries its own audit line, so
+M3 is silent; it is fully proven, so M1 is silent. The only thing that sees it
+is the pinned `#print axioms` message, because the theorem picks up
+`Classical.choice` from core and the expected output stops matching. The runner
+asserts the precondition too — that the text gate is blind to M4 — because
+otherwise the row could pass while proving something the grep already knew.
+
+All four exist because **`lake build` exits 0 on every one of them except M4**.
+An unproven theorem is a warning; a declared assumption is legal; an unaudited
+theorem is ordinary Lean. The gate is what makes any of it mechanical.
+
+The text gate is deliberately **comment-blind**: it does not parse Lean, so the
+`sorry`/`native_decide` needles also fire on a mention inside a comment — which
+is why this README spells them obliquely. That is the right trade; the
+alternative is a comment-aware scanner whose bugs all fail open. If a hit is a
+mention, reword the comment. Never weaken the needle. The assumption needle is
+the one exception: it is anchored to the start of a line, because a file whose
+job is auditing the trusted base says the word in prose constantly and a needle
+people fight every week gets weakened within a month. `Fingerprint.lean`'s
+prose is reflowed to respect it, and needle 3b is what makes the smaller needle
+safe — anything it misses still has to pass `#guard_msgs`.
 
 Its positive read assertion has **zero margin**: two `.lean` files against a
 floor of two. Fine, but nobody gets to tidy a file away.
