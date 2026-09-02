@@ -20,6 +20,17 @@ name: formal (TLA+ model + Lean obligation)
 # `src/explore.rs`, so a change there MUST reach this workflow. A paths filter
 # scoped to `spec/**` and `formal/**` would let exactly the drift this layer
 # exists to catch skip the gate — the same shape as a `.tla` with no `.cfg`.
+#
+# EVERY THIRD-PARTY ACTION IS SHA-PINNED, and so is the elan installer. For an
+# ordinary build that is hygiene; for a job whose OUTPUT IS EVIDENCE it is part
+# of the claim — "no axioms" is a statement about what ran, and a floating tag
+# means an upstream force-push changes what ran without changing this file. The
+# comment beside each pin is the human-readable version it resolved to.
+#
+# ci.yml IS STILL UNPINNED. That is a real gap and it is NOT a judgement that
+# pinning is wrong there; it is a lane boundary — ci.yml belongs to the sibling
+# branch and a merge conflict in a workflow file helps nobody. Tracked as a
+# repo-wide follow-up. Do not read the asymmetry as intent.
 
 on:
   push:
@@ -35,7 +46,7 @@ jobs:
     name: Stub gate (pure grep, no toolchain)
     runs-on: ${{ vars.GMF_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - run: scripts/check-lean-proofs.sh
 
   lean:
@@ -43,12 +54,23 @@ jobs:
     runs-on: ${{ vars.GMF_LINUX_RUNNER || 'ubuntu-latest' }}
     needs: no-sorry
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # PINNED AND CHECKSUM-VERIFIED, the same way spec/tla/check.sh resolves
+      # tla2tools.jar. This job produces evidence, so what runs in it is part of
+      # the claim: `curl … elan-init.sh | sh` from a mutable URL means the
+      # trusted base includes whatever that host served this morning. Bump the
+      # version and the checksum in lock-step.
       - name: Install elan (Lean toolchain manager)
+        env:
+          ELAN_VERSION: v4.2.4
+          ELAN_SHA256: 42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63
         run: |
           set -euo pipefail
-          curl -sSfL https://elan.lean-lang.org/elan-init.sh -o elan-init.sh
-          sh elan-init.sh -y --default-toolchain none
+          url="https://github.com/leanprover/elan/releases/download/${ELAN_VERSION}/elan-x86_64-unknown-linux-gnu.tar.gz"
+          curl -sSfL "$url" -o elan.tar.gz
+          echo "${ELAN_SHA256}  elan.tar.gz" | sha256sum -c -
+          tar xzf elan.tar.gz
+          ./elan-init -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       # Checks every theorem. The toolchain is pinned in formal/lean-toolchain
       # and `Newtui` is in lakefile.toml's defaultTargets — without that this
@@ -56,6 +78,13 @@ jobs:
       - name: lake build
         working-directory: formal
         run: lake build
+      # The axiom audit, mutation-verified. `#print axioms` is an `info`
+      # message: without `#guard_msgs` pinning it, a theorem that acquires a
+      # dependency prints something new and `lake build` still exits 0. This
+      # runner seeds four mutations and asserts each one goes red — including
+      # one (a `Classical`-backed proof) that ONLY the pinned message can catch.
+      - name: Expected-red mutations for the proof gate
+        run: scripts/check-lean-mutations.sh
 
   tla:
     name: TLC — green configurations, then every mutation
@@ -65,8 +94,8 @@ jobs:
       # on a clean runner, which is the path a fresh clone takes.
       TLA2TOOLS_JAR: ''
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
         with:
           distribution: temurin
           java-version: '17'
@@ -93,9 +122,9 @@ jobs:
     name: Model fidelity — RustObs.tla vs a real explore() run
     runs-on: ${{ vars.GMF_LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable, resolved 2026-09-02
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       # The ONLY tie between the TLA+ module and src/. See spec/tla/README.md
       # for what it binds and what it does not.
       - run: scripts/check-model.sh
