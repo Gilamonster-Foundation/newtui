@@ -227,8 +227,9 @@ mod tests {
         );
     }
 
-    /// **No two distinct states share a fingerprint** — the identity is
-    /// structural, so there is no encoding for a separator to escape from.
+    /// **Structural fingerprints keep constructor and sequence boundaries** —
+    /// the identity is structure, so there is no encoding for a separator to
+    /// escape from.
     ///
     /// Every pair below was EQUAL while the fingerprint was one joined string,
     /// and `seen.insert(component.fingerprint())` is what decides whether a
@@ -242,9 +243,34 @@ mod tests {
     /// rarer separators relocates the bug rather than fixing it. These pairs
     /// collide under the old encoding, under the legible rendering that
     /// replaced it, and under any other join a future refactor might reach for.
-    // GUARD: component::tests::no_two_distinct_states_can_share_a_fingerprint — this is a guard; tests/mutations.rs must show it red.
+    ///
+    /// # What this does NOT say
+    ///
+    /// This test was called `no_two_distinct_states_can_share_a_fingerprint`,
+    /// which is a universal injectivity claim, and it is **false of this
+    /// abstraction by design**:
+    ///
+    /// - [`Fingerprint::of_view`] is deliberately not injective over states. A
+    ///   component whose internal state differs in a way the view does not show
+    ///   fingerprints the same, and that is the whole reason the walk
+    ///   terminates — the fingerprint is a BEHAVIOURAL abstraction, not a state
+    ///   identity. A component for which that merge is wrong is required to
+    ///   fold the hidden half in with [`Fingerprint::and`]; see
+    ///   [`hidden_state_can_be_folded_in`].
+    /// - [`Fingerprint::of`] takes whatever summary the caller writes. Nothing
+    ///   here can make a caller's summary injective, and a caller who returns a
+    ///   constant gets one state and an exhausted-looking walk.
+    ///
+    /// What the structural representation establishes is narrower and true:
+    /// distinct STRUCTURE stays distinct. Two views that differ in any field
+    /// differ; a fold of two elements is not a fold of one; a view-derived
+    /// identity is never equal to a caller's string that renders the same way.
+    /// The obligation the caller still owes — that states sharing a fingerprint
+    /// really are interchangeable from here on — is stated on
+    /// [`Fingerprint`] and is not discharged by this test.
+    // GUARD: component::tests::structural_fingerprints_keep_their_boundaries — this is a guard; tests/mutations.rs must show it red.
     #[test]
-    fn no_two_distinct_states_can_share_a_fingerprint() {
+    fn structural_fingerprints_keep_their_boundaries() {
         let pairs = [
             // The old field separator, inside a title and inside a footer.
             (
