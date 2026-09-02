@@ -44,14 +44,28 @@ struct Mutation {
 }
 
 /// The table. One row per guard in this crate.
-const MUTATIONS: &[Mutation] = &[Mutation {
-    defect: "the end-of-search assignment overwrites a depth truncation \
+const MUTATIONS: &[Mutation] = &[
+    Mutation {
+        defect: "the end-of-search assignment overwrites a depth truncation \
                  (the bug fixed in 5307cd7)",
-    file: "src/explore.rs",
-    from: "report.exhausted &= queue.is_empty()",
-    to: "report.exhausted = queue.is_empty()",
-    expect_red: "tests::a_depth_capped_search_is_a_sample_and_admits_it",
-}];
+        file: "src/explore.rs",
+        from: "report.exhausted &= queue.is_empty()",
+        to: "report.exhausted = queue.is_empty()",
+        expect_red: "tests::a_depth_capped_search_is_a_sample_and_admits_it",
+    },
+    Mutation {
+        defect: "a closing state's view is dropped from the corpus, which then \
+                 calls itself complete (bug 3a — what the deleted second walk \
+                 shipped)",
+        file: "src/explore.rs",
+        from: "if recorded.insert(after.clone()) {
+                        report.views.push(after.clone());
+                    }
+                    report.terminal_states += 1;",
+        to: "report.terminal_states += 1;",
+        expect_red: "tests::the_corpus_holds_the_states_that_closed",
+    },
+];
 
 #[test]
 fn every_guard_has_a_defect_it_provably_catches() {
@@ -123,7 +137,7 @@ fn every_guard_has_a_defect_it_provably_catches() {
     }
 
     assert!(
-        checked >= 1,
+        checked >= 2,
         "only {checked} mutations ran. This table may only GROW: a guard \
          removed from it is a guard nobody has seen fail."
     );

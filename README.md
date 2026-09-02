@@ -77,10 +77,14 @@ combinatorial explosion.
 failure reports the minimal key sequence that reaches it, by construction —
 there is no shrinking step to trust, tune, or wait for.
 
-The recorded corpus works the same way: `Explorer::states` returns a `Corpus`
-carrying `complete`, because a corpus handed to a reimplementation as "the
-states it must satisfy" would, if quietly truncated, pass something that does
-less.
+**The corpus is the same walk.** `report.views` is every distinct view the
+search judged — including the view a component closed on, which is where
+"escape left the draft alone" lives — and `report.exhausted` is what says
+whether that is all of them. One walk and one completeness flag, because a
+corpus handed to a reimplementation as "the states it must satisfy" would, if
+quietly truncated, pass something that does less. There used to be a second
+walk with a second flag; the two disagreed, and the one advertised as the
+conformance artifact was the strict subset.
 
 ## Properties are data
 
