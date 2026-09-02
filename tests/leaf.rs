@@ -148,13 +148,28 @@ fn every_runtime_dependency_is_optional() {
 
 /// **No path or git dependencies, at any feature setting.**
 ///
-/// A path or git edge either fails to build from a registry or drags an
-/// unpublishable cycle into a downstream repo — and it can swap an
-/// implementation under a consumer without a version bump.
+/// A path or git edge can swap an implementation under a consumer with no
+/// version bump, and a consumer who takes this crate BY GIT — which is how it
+/// is pulled into newt, wyvern and gilamonster today — resolves our edges the
+/// way we wrote them, not the way a registry would rewrite them.
 ///
-/// Direct dependencies only, and that is adequate rather than lazy: crates.io
-/// refuses to publish a crate carrying a path or git dependency, so a
-/// transitive one cannot arrive through a registry edge.
+/// # This is a project rule, not a cargo guarantee
+///
+/// It would be convenient to say crates.io refuses to publish a crate carrying
+/// a path or git dependency, and an earlier version of this comment did. That
+/// is not what cargo does. A `path` or `git` dependency that ALSO carries a
+/// `version` is published as an ordinary registry dependency — the path or URL
+/// is dropped and the version is kept, which is the standard workspace pattern.
+/// What cargo refuses is the form with no `version` to fall back to.
+///
+/// So the registry does guarantee the narrow thing this test's *scope* rests
+/// on: a crate downloaded from crates.io cannot reach a path or git edge
+/// transitively, because the edge was rewritten before publication. Direct
+/// dependencies are therefore the whole question here. It does NOT guarantee
+/// the thing the test asserts, which is stricter than cargo and deliberately
+/// so: **this crate declares no path or git edge in the first place**, so that
+/// the source a consumer builds is the source we tested, whether they take it
+/// from the registry or from this repository.
 #[test]
 fn nothing_comes_from_a_path_or_a_git_url() {
     let package = manifest();
