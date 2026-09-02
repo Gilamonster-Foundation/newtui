@@ -1,0 +1,62 @@
+# newtui — TUI components you can drive in isolation.
+#
+# A workspace whose only member today is the core crate at the repo root.
+# Component crates land beside it as they are extracted, each a separate,
+# non-default member, so a plain `cargo build` never compiles a component's
+# rendering stack on the harness's account.
+[workspace]
+members = []
+default-members = ["."]
+
+[package]
+name = "newtui"
+version = "0.1.0"
+# FROZEN policy for the 0.1.x line, and the reason is the same one
+# precedence-ladder states: a floor that is only true because of OUR committed
+# lock is a vacuous claim, since a downstream consumer resolves fresh. Nothing
+# in the core needs anything recent; the floor is set by the optional feature
+# graph, and a dedicated CI job pins the toolchain so a new dependency cannot
+# raise it silently.
+edition = "2021"
+rust-version = "1.88"
+license = "Apache-2.0"
+description = "TUI components you can drive in isolation: each one a state machine over keys, with an exhaustive acceptance harness that says what it must do."
+repository = "https://github.com/Gilamonster-Foundation/newtui"
+keywords = ["tui", "terminal", "testing", "state-machine", "components"]
+categories = ["command-line-interface", "development-tools::testing"]
+
+[features]
+# The core — `Component`, `Flow`, `View`, the alphabet, the fingerprint, and
+# the exhaustive explorer — depends on NOTHING. With `--no-default-features`
+# the resolved closure of this crate is empty, and `tests/leaf.rs` asserts that
+# rather than this comment claiming it.
+#
+# That emptiness is not tidiness. This crate is meant to be pulled into newt,
+# wyvern, gilamonster and any foreign TUI that wants the components without
+# newt's release train — the LEAF invariant precedence-ladder established for
+# this line. A component that dragged a renderer into every consumer would end
+# it.
+default = []
+# Render a `View` into a ratatui frame. OFF by default: a headless consumer
+# (wyvern, an eval harness, a test runner) drives components and inspects
+# views without ever drawing one, and should not compile a terminal backend to
+# do it.
+ratatui = ["dep:ratatui"]
+
+[dependencies]
+# EVERY runtime dependency is optional, and `tests/leaf.rs` asserts it. A
+# non-optional entry would ship to every consumer including the
+# `--no-default-features` one, and would end the empty-closure claim.
+ratatui = { version = "0.29", optional = true }
+
+# Dev-dependencies ship to NOBODY — absent from every consumer's resolved
+# closure. There is deliberately no property-testing crate here: the explorer
+# IS the test infrastructure, and reaching for one to test the exhaustive
+# explorer would be answering the question this crate exists to ask.
+#
+# `serde_json` earns its place by reading `cargo metadata` in tests/leaf.rs —
+# the guard that keeps the runtime closure empty. Parsing that JSON by hand
+# would be a second parser in the one place accuracy decides whether the
+# crate's central claim is checked at all.
+[dev-dependencies]
+serde_json = "1"
