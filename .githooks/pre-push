@@ -12,13 +12,15 @@
 # the parity rule requires, and it is repeated verbatim in the justfile header
 # and in formal.yml's header:
 #
-#   `lean`   needs a Lean toolchain (elan + a pinned lean4 release).
+#   `lean`   needs a Lean toolchain (elan + a pinned lean4 release), and so
+#            does `lean-mutations`, which seeds four proof-gate mutations and
+#            runs `lake build` on one of them.
 #   `tla`    needs a JRE and a pinned 10 MB tla2tools.jar.
 #   `mutations` needs the same JRE and jar, and runs nine TLC invocations.
 #
 # Requiring a Lean install and a JVM in every developer's pre-push would be
 # disproportionate, and a hook people route around is worse than no hook. Those
-# three are CI-only BY DESIGN — the shape newt-agent's formal.yml records as
+# four are CI-only BY DESIGN — the shape newt-agent's formal.yml records as
 # `HOOK PARITY: intentionally NONE`. `just formal` runs them locally.
 #
 # What IS here from the formal layer is everything that costs nothing:

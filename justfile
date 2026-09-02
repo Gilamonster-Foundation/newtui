@@ -11,10 +11,10 @@
 #   cheap — a grep and a cargo run — and there is no excuse for a
 #   milliseconds-long gate being CI-only.
 #
-#   `lean`, `tla` and `mutations` are NOT in `check`. They need a Lean
-#   toolchain and a pinned 10 MB tla2tools.jar, and requiring both in every
-#   developer's pre-push would be disproportionate. They are CI-only BY
-#   DESIGN, the way newt-agent's formal.yml records `HOOK PARITY:
+#   `lean`, `lean-mutations`, `tla` and `mutations` are NOT in `check`. They
+#   need a Lean toolchain and a pinned 10 MB tla2tools.jar, and requiring both
+#   in every developer's pre-push would be disproportionate. They are CI-only
+#   BY DESIGN, the way newt-agent's formal.yml records `HOOK PARITY:
 #   intentionally NONE`. Run them locally with `just formal`.
 
 # Format, lint, test and document — the whole gate.
@@ -60,20 +60,22 @@ rust-mutations:
 
 # --- the formal layer -------------------------------------------------------
 
-# The stub gate. `lake build` exits 0 on an unproven theorem, so this grep is
-# the only thing between a stub and a green badge. Pure text, milliseconds, no
-# toolchain — which is why it is in `check` and in the push hook.
+# The text half of the proof gate: no `sorry`, no `native_decide`, no `axiom`
+# declaration, and every theorem inside the `#print axioms` audit. `lake build`
+# exits 0 on all four, so this grep is the only thing between them and a green
+# badge. Pure text, milliseconds, no toolchain — which is why it is in `check`
+# and in the push hook.
 no-sorry:
     scripts/check-lean-proofs.sh
 
-# The bridge. Regenerates spec/tla/RustObs.tla from a real `Explorer::explore`
+# The bridge. Regenerates spec/tla/lib/RustObs.tla from a real `Explorer::explore`
 # run and fails on drift. Needs cargo and nothing else, so it is in `check`:
 # a change to src/explore.rs that moves a report counter must not reach CI
 # before the model has been asked to agree with it.
 model:
     scripts/check-model.sh
 
-# Rewrite spec/tla/RustObs.tla after a deliberate change to the explorer. EXPECT
+# Rewrite spec/tla/lib/RustObs.tla after a deliberate change to the explorer. EXPECT
 # TLC to go red on ModelMatchesRust afterwards until the model agrees — that red
 # is the point of the gate.
 regen-model:
@@ -82,6 +84,12 @@ regen-model:
 # Machine-check every theorem (needs a Lean toolchain; see formal/README.md).
 lean:
     cd formal && lake build
+
+# Every proof gate gets a mutation that turns it red, EXECUTED — including the
+# one only `#guard_msgs` can catch, where a theorem picks up `Classical.choice`
+# from core and no grep can see it. Needs the Lean toolchain.
+lean-mutations:
+    scripts/check-lean-mutations.sh
 
 # Model-check every green configuration (needs java; check.sh fetches the
 # pinned, checksum-verified tla2tools.jar).
@@ -95,7 +103,7 @@ tla-mutations:
     scripts/check-mutations.sh
 
 # Everything in the formal layer. Not part of `check` — see the header.
-formal: no-sorry lean tla tla-mutations model
+formal: no-sorry lean lean-mutations tla tla-mutations model
 
 # Regenerate every demo GIF from its tape (needs `vhs`).
 demos:
