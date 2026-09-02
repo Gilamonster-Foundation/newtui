@@ -171,6 +171,18 @@ const MUTATIONS: &[Mutation] = &[
         cargo_args: &[],
     },
     Mutation {
+        defect: "a named lookup returns only the FIRST match, hiding the \
+                 second behind the very name collision R5 stopped silencing",
+        file: "src/explore.rs",
+        from: "            .filter(|v| v.property == property)
+            .collect()",
+        to: "            .find(|v| v.property == property)
+            .into_iter()
+            .collect()",
+        expect_red: "tests::a_named_lookup_returns_every_violation_with_that_name",
+        cargo_args: &[],
+    },
+    Mutation {
         defect: "property retirement keyed on the NAME STRING, so two claims \
                  sharing a name silence each other (R5)",
         file: "src/explore.rs",
