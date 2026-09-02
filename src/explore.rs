@@ -26,7 +26,33 @@
 
 use std::collections::{HashSet, VecDeque};
 
-use crate::{Component, Fingerprint, Flow, Key, Observation, Property, View};
+use crate::{Component, Fingerprint, Flow, Key, Observation, Property, PropertyOutcome, View};
+
+/// What one property actually got to judge.
+///
+/// The field this replaces was `properties_checked: usize`, set to
+/// `properties.len()` before a single observation was looked at — so it meant
+/// SUPPLIED while it was named CHECKED, and `is_clean()` treated nonzero as
+/// enough. A walk over an alphabet that never reaches a property's domain came
+/// back `Clean` with that property never once applied: explore a component over
+/// `[Key::Right]` with a claim about Escape and you get transitions, one
+/// "checked" property, no violations, `exhausted: true`, therefore `Clean` —
+/// without Escape ever being pressed.
+///
+/// So the report counts what happened instead of what was handed in.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PropertyCoverage {
+    /// The property's name, as it would appear on a violation.
+    pub name: String,
+    /// How many observations it was shown. It stops being consulted once it has
+    /// been reported, under the once-per-property policy.
+    pub observations: usize,
+    /// How many of those were in its DOMAIN — the number that decides whether
+    /// its silence is worth anything.
+    pub applicable: usize,
+    /// How many of the applicable ones it held for.
+    pub held: usize,
+}
 
 /// A property that did not hold, and the shortest way to reproduce it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,12 +91,15 @@ pub struct Report {
     /// States that closed the component — a search does not continue past one,
     /// because a closed component is not there to receive another key.
     pub terminal_states: usize,
-    /// How many properties the walk was given.
+    /// What each property actually got to judge — see [`PropertyCoverage`].
     ///
     /// In the report because a report that cannot say this cannot tell
     /// "17,280 states against three properties" from "17,280 states against
-    /// nothing", and the second is a walk that judged nothing at all.
-    pub properties_checked: usize,
+    /// nothing", and the second is a walk that judged nothing at all. Per
+    /// property and not a count, because "three properties were supplied" and
+    /// "three properties were applicable" are different claims and only the
+    /// second is evidence.
+    pub properties: Vec<PropertyCoverage>,
     /// Each broken property, reported once, with the shortest path to it.
     ///
     /// PRIVATE on purpose, and this is the whole of bug 3c: while it was
@@ -156,21 +185,51 @@ impl Report {
 
     /// Why this walk proves nothing, if it does not.
     ///
-    /// Three ways a search can come back with no violations and no standing to
-    /// say so. The first is a capped search. The other two are the DEGENERATE
-    /// runs — nothing checked, and nothing walked — which are the vacuous
+    /// Four ways a search can come back with no violations and no standing to
+    /// say so. The first is a capped search. The next two are the DEGENERATE
+    /// runs — nothing supplied, and nothing walked — which are the vacuous
     /// green in its purest form: both of them used to be `is_clean() == true`.
+    ///
+    /// The last is the one a count could not express, and the reason
+    /// `properties_checked` had to become [`PropertyCoverage`]: a property that
+    /// was supplied, and walked past, and never once in its domain. Its silence
+    /// is not evidence, and a walk that consists only of such silence is not a
+    /// clean bill however many states it visited.
+    ///
+    /// Ordered narrowest-cause-first, so the reason a report gives is the one
+    /// that explains the most: an empty alphabet also makes every transition
+    /// property inapplicable, and "no key was ever applied" is the finding.
     fn incomplete_because(&self) -> Option<&'static str> {
         if !self.exhausted {
             return Some("STOPPED AT A LIMIT — this is a sample, not a proof");
         }
-        if self.properties_checked == 0 {
-            return Some("NO PROPERTY WAS CHECKED — the walk judged nothing");
+        if self.properties.is_empty() {
+            return Some("NO PROPERTY WAS SUPPLIED — the walk judged nothing");
         }
         if self.transitions == 0 {
             return Some("NO KEY WAS EVER APPLIED — the alphabet was empty");
         }
+        if self.properties.iter().any(|p| p.applicable == 0) {
+            return Some(
+                "A SUPPLIED PROPERTY NEVER APPLIED — its domain was never \
+                 reached, so its silence says nothing",
+            );
+        }
         None
+    }
+
+    /// The properties this walk never got to judge — supplied, walked past, and
+    /// never once in their domain. Empty is the healthy answer.
+    ///
+    /// The usual cause is an alphabet that does not contain the key the claim
+    /// is about, which `Explorer::new`'s own doc encourages trimming.
+    #[must_use]
+    pub fn never_applied(&self) -> Vec<&str> {
+        self.properties
+            .iter()
+            .filter(|p| p.applicable == 0)
+            .map(|p| p.name.as_str())
+            .collect()
     }
 
     /// Did the search prove what it set out to?
@@ -201,12 +260,16 @@ impl core::fmt::Display for Report {
             self.states,
             self.transitions,
             self.terminal_states,
-            self.properties_checked,
+            self.properties.len(),
             match self.incomplete_because() {
                 Some(reason) => format!(" ({reason})"),
                 None => String::new(),
             }
         )?;
+        let never = self.never_applied();
+        if !never.is_empty() {
+            writeln!(f, "never applicable: {}", never.join(", "))?;
+        }
         if self.violations.is_empty() {
             return write!(f, "no violations");
         }
@@ -277,7 +340,13 @@ impl Explorer {
         // that bug.
         let mut report = Report {
             exhausted: true,
-            properties_checked: properties.len(),
+            properties: properties
+                .iter()
+                .map(|property| PropertyCoverage {
+                    name: property.name().to_string(),
+                    ..PropertyCoverage::default()
+                })
+                .collect(),
             ..Report::default()
         };
         let mut seen: HashSet<Fingerprint> = HashSet::new();
@@ -408,13 +477,28 @@ impl Explorer {
             if reported.contains(&index) {
                 continue;
             }
-            if let Err(detail) = property.check(observation) {
-                reported.insert(index);
-                report.violations.push(Violation {
-                    property: property.name().to_string(),
-                    path: path.to_vec(),
-                    detail,
-                });
+            let coverage = &mut report.properties[index];
+            coverage.observations += 1;
+            match property.check(observation) {
+                // Outside its domain: consulted, and it declined to speak. The
+                // one outcome that must NOT count towards `applicable`, because
+                // that count is the whole difference between a property that
+                // held and a property that was never asked anything it knows
+                // about.
+                PropertyOutcome::NotApplicable => {}
+                PropertyOutcome::Held => {
+                    coverage.applicable += 1;
+                    coverage.held += 1;
+                }
+                PropertyOutcome::Violated(detail) => {
+                    coverage.applicable += 1;
+                    reported.insert(index);
+                    report.violations.push(Violation {
+                        property: property.name().to_string(),
+                        path: path.to_vec(),
+                        detail,
+                    });
+                }
             }
         }
     }

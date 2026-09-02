@@ -42,17 +42,42 @@ impl Observation<'_> {
     }
 }
 
+/// What a property made of ONE observation.
+///
+/// Three answers, not two, for the same reason [`crate::Verdict`] has three.
+/// A property that says "no complaint" is saying one of two entirely different
+/// things — *I judged this and it held*, or *this is not mine to judge* — and
+/// `Result<(), String>` cannot tell them apart. That gap is what let
+/// `Report.properties_checked` mean SUPPLIED while it was named CHECKED: the
+/// count was `properties.len()`, fixed before a single observation was looked
+/// at, and a walk over an alphabet that never reaches a property's domain came
+/// back `Clean` with that property never once applied.
+///
+/// The split is DOMAIN versus BODY: whether the observation is one this claim
+/// speaks about at all, and then whether the claim holds of it. `Held` is the
+/// right answer for a body that is satisfied vacuously — an arrow on a row that
+/// IS adjustable is an observation `only_adjustable_rows_move` judged and
+/// passed, not one it declined.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PropertyOutcome {
+    /// Outside this property's domain — it has nothing to say here, and its
+    /// silence is not evidence about anything.
+    NotApplicable,
+    /// In its domain, and it held.
+    Held,
+    /// In its domain, and it did not hold. Carries what went wrong, phrased for
+    /// someone reading a failure.
+    Violated(String),
+}
+
 /// A named claim, checked at every state and transition the explorer reaches.
 pub trait Property {
     /// How this claim is named in a report.
     fn name(&self) -> &str;
 
-    /// `Err` carries what went wrong, phrased for someone reading a failure.
-    ///
-    /// # Errors
-    ///
-    /// The component violated this property at this observation.
-    fn check(&self, observation: &Observation<'_>) -> Result<(), String>;
+    /// Judge one observation. See [`PropertyOutcome`] for why there are three
+    /// answers and not two.
+    fn check(&self, observation: &Observation<'_>) -> PropertyOutcome;
 }
 
 /// A property written as a closure — the way a component declares its own.
@@ -63,7 +88,7 @@ pub struct Named<F> {
 
 impl<F> Named<F>
 where
-    F: Fn(&Observation<'_>) -> Result<(), String>,
+    F: Fn(&Observation<'_>) -> PropertyOutcome,
 {
     /// Name a claim and give it a body.
     pub fn new(name: impl Into<String>, check: F) -> Self {
@@ -76,13 +101,13 @@ where
 
 impl<F> Property for Named<F>
 where
-    F: Fn(&Observation<'_>) -> Result<(), String>,
+    F: Fn(&Observation<'_>) -> PropertyOutcome,
 {
     fn name(&self) -> &str {
         &self.name
     }
 
-    fn check(&self, observation: &Observation<'_>) -> Result<(), String> {
+    fn check(&self, observation: &Observation<'_>) -> PropertyOutcome {
         (self.check)(observation)
     }
 }
@@ -94,7 +119,7 @@ where
 /// Cs: the acceptance set is data a component assembles, not a fixed list this
 /// module hardcodes for everyone.
 pub mod properties {
-    use super::{Named, Observation};
+    use super::{Named, Observation, PropertyOutcome};
     use crate::Flow;
 
     /// **At most one row is selected, and a non-empty component selects one.**
@@ -104,19 +129,25 @@ pub mod properties {
     /// filtered list — the index can point past the end, and the component
     /// silently acts on nothing. Reported as "nothing happened", which is the
     /// hardest kind of bug to be shown.
+    ///
+    /// Domain: any view with rows. A view with none has no selection to be in
+    /// or out of range, so it is `NotApplicable` rather than a free pass — a
+    /// component whose every view is empty is one this property never judged,
+    /// and the report says so instead of calling it clean.
     #[must_use]
-    pub fn selection_is_always_in_range() -> Named<impl Fn(&Observation<'_>) -> Result<(), String>>
-    {
+    pub fn selection_is_always_in_range() -> Named<impl Fn(&Observation<'_>) -> PropertyOutcome> {
         Named::new("selection is always in range", |observation| {
             let view = observation.view();
+            if view.rows.is_empty() {
+                return PropertyOutcome::NotApplicable;
+            }
             match view.selection_count() {
-                0 if view.rows.is_empty() => Ok(()),
-                0 => Err(format!(
+                0 => PropertyOutcome::Violated(format!(
                     "{} rows and nothing selected — a key would act on no row",
                     view.rows.len()
                 )),
-                1 => Ok(()),
-                n => Err(format!("{n} rows claim the cursor at once")),
+                1 => PropertyOutcome::Held,
+                n => PropertyOutcome::Violated(format!("{n} rows claim the cursor at once")),
             }
         })
     }
@@ -132,29 +163,39 @@ pub mod properties {
     /// second Esc closes the component) does not satisfy this as written and
     /// should say so: use `escape_always_leaves_something` instead, which
     /// requires only that Esc CHANGES the state.
+    ///
+    /// Domain: an escape key applied to a state. Over an alphabet with no
+    /// escape in it this property is `NotApplicable` everywhere, which is
+    /// exactly the walk that used to come back `Clean` having never tried the
+    /// key the claim is about.
     #[must_use]
     pub fn escape_always_closes_without_applying(
-    ) -> Named<impl Fn(&Observation<'_>) -> Result<(), String>> {
+    ) -> Named<impl Fn(&Observation<'_>) -> PropertyOutcome> {
         Named::new("escape always closes without applying", |observation| {
             let Observation::Transition { key, flow, .. } = observation else {
-                return Ok(());
+                return PropertyOutcome::NotApplicable;
             };
             if !key.is_escape() {
-                return Ok(());
+                return PropertyOutcome::NotApplicable;
             }
             match flow {
-                Flow::Close(false) => Ok(()),
-                Flow::Close(true) => Err("escape closed the component AS AN APPLY".to_string()),
-                Flow::Stay => Err("escape left the component open".to_string()),
+                Flow::Close(false) => PropertyOutcome::Held,
+                Flow::Close(true) => {
+                    PropertyOutcome::Violated("escape closed the component AS AN APPLY".to_string())
+                }
+                Flow::Stay => {
+                    PropertyOutcome::Violated("escape left the component open".to_string())
+                }
             }
         })
     }
 
     /// The weaker escape claim, for a component with sub-modes: Esc must
     /// always DO something — close, or leave the state it was in.
+    ///
+    /// Same domain as the strict form: an escape key applied to a state.
     #[must_use]
-    pub fn escape_always_leaves_something() -> Named<impl Fn(&Observation<'_>) -> Result<(), String>>
-    {
+    pub fn escape_always_leaves_something() -> Named<impl Fn(&Observation<'_>) -> PropertyOutcome> {
         Named::new("escape always leaves something", |observation| {
             let Observation::Transition {
                 from,
@@ -164,17 +205,19 @@ pub mod properties {
                 ..
             } = observation
             else {
-                return Ok(());
+                return PropertyOutcome::NotApplicable;
             };
             if !key.is_escape() {
-                return Ok(());
+                return PropertyOutcome::NotApplicable;
             }
             if matches!(flow, Flow::Close(_)) || from != to {
-                Ok(())
+                PropertyOutcome::Held
             } else {
-                Err("escape neither closed nor changed anything — a state with \
+                PropertyOutcome::Violated(
+                    "escape neither closed nor changed anything — a state with \
                      no way out"
-                    .to_string())
+                        .to_string(),
+                )
             }
         })
     }
@@ -185,25 +228,40 @@ pub mod properties {
     /// change it. The inverse has to hold too, or a stray arrow silently
     /// repoints something the operator was only passing over — and this is the
     /// property that says so at every state, not just the row someone tested.
+    ///
+    /// Domain: a horizontal arrow applied to a state that has a cursor row, and
+    /// that row still exists after the key. The `adjustable` flag is the BODY,
+    /// not the domain: an arrow on a row that IS adjustable is an observation
+    /// this property judged and passed. Reading it the other way — vacuously
+    /// true, therefore not applicable — was tried and reverted, because it
+    /// makes this property `NotApplicable` at every observation of a component
+    /// whose rows are all dials, which is the crate's own worked example and
+    /// its own `Dial` test. The line has to fall somewhere, and "did this
+    /// observation get judged" is the honest place.
+    ///
+    /// It is also, per the review, only as good as `Row::adjustable` — which
+    /// conflates *the operator can dial this* with *this changes under an
+    /// arrow*, and those come apart on any chooser with a derived detail pane.
+    /// A row-quantified rewrite is blocked on that, not on this seam.
     #[must_use]
-    pub fn only_adjustable_rows_move() -> Named<impl Fn(&Observation<'_>) -> Result<(), String>> {
+    pub fn only_adjustable_rows_move() -> Named<impl Fn(&Observation<'_>) -> PropertyOutcome> {
         Named::new("only adjustable rows move", |observation| {
             let Observation::Transition { from, key, to, .. } = observation else {
-                return Ok(());
+                return PropertyOutcome::NotApplicable;
             };
             if !matches!(key, crate::Key::Left | crate::Key::Right) {
-                return Ok(());
+                return PropertyOutcome::NotApplicable;
             }
             let Some(at) = from.selected() else {
-                return Ok(());
+                return PropertyOutcome::NotApplicable;
             };
             let (Some(before), Some(after)) = (from.rows.get(at), to.rows.get(at)) else {
-                return Ok(());
+                return PropertyOutcome::NotApplicable;
             };
             if before.adjustable || before.value == after.value {
-                Ok(())
+                PropertyOutcome::Held
             } else {
-                Err(format!(
+                PropertyOutcome::Violated(format!(
                     "`{}` is not adjustable but {key} changed it from `{}` to `{}`",
                     before.label, before.value, after.value
                 ))
@@ -246,27 +304,48 @@ mod tests {
         }
     }
 
+    /// What a property said went wrong, or a panic naming what it said instead.
+    ///
+    /// The positive cases below assert `Held` or `NotApplicable` by NAME rather
+    /// than through one "no complaint" predicate. That distinction is the whole
+    /// of the fix: `is_ok()` could not tell a property that judged an
+    /// observation from one that declined it, and a report built on the second
+    /// reading called a walk clean that had never applied the key its only
+    /// claim was about.
+    fn refusal(outcome: PropertyOutcome) -> String {
+        match outcome {
+            PropertyOutcome::Violated(detail) => detail,
+            other => panic!("expected a violation, got {other:?}"),
+        }
+    }
+
     #[test]
     fn the_selection_property_catches_both_shapes_of_wrong() {
         let p = selection_is_always_in_range();
         let ok = view(vec![Row::new("a", "1").selected(), Row::new("b", "2")]);
-        assert!(p.check(&Observation::State { view: &ok }).is_ok());
+        assert_eq!(
+            p.check(&Observation::State { view: &ok }),
+            PropertyOutcome::Held
+        );
 
         let none = view(vec![Row::new("a", "1")]);
-        let err = p
-            .check(&Observation::State { view: &none })
-            .expect_err("a row list with no cursor is a defect");
+        let err = refusal(p.check(&Observation::State { view: &none }));
         assert!(err.contains("nothing selected"), "{err}");
 
         let two = view(vec![
             Row::new("a", "1").selected(),
             Row::new("b", "2").selected(),
         ]);
-        assert!(p.check(&Observation::State { view: &two }).is_err());
+        assert!(refusal(p.check(&Observation::State { view: &two })).contains("at once"));
 
-        // An empty component selects nothing, and that is fine.
+        // An empty component has no selection to be in or out of range. NOT a
+        // pass: there was nothing here for this property to judge, and a
+        // component whose every view is empty is one it never judged at all.
         let empty = view(Vec::new());
-        assert!(p.check(&Observation::State { view: &empty }).is_ok());
+        assert_eq!(
+            p.check(&Observation::State { view: &empty }),
+            PropertyOutcome::NotApplicable
+        );
     }
 
     #[test]
@@ -279,25 +358,27 @@ mod tests {
             to: &v,
             flow,
         };
-        assert!(p.check(&at(Flow::Close(false))).is_ok());
-        assert!(p
-            .check(&at(Flow::Close(true)))
-            .expect_err("escape must not apply")
-            .contains("AS AN APPLY"));
-        assert!(p
-            .check(&at(Flow::Stay))
-            .expect_err("escape must not be swallowed")
-            .contains("left the component open"));
+        assert_eq!(p.check(&at(Flow::Close(false))), PropertyOutcome::Held);
+        assert!(refusal(p.check(&at(Flow::Close(true)))).contains("AS AN APPLY"));
+        assert!(refusal(p.check(&at(Flow::Stay))).contains("left the component open"));
 
-        // A non-escape key is none of its business.
-        assert!(p
-            .check(&Observation::Transition {
+        // A non-escape key is none of its business — and that is NOT the same
+        // answer as "escape behaved", which is what a `Result` made of it.
+        assert_eq!(
+            p.check(&Observation::Transition {
                 from: &v,
                 key: Key::Enter,
                 to: &v,
                 flow: Flow::Close(true),
-            })
-            .is_ok());
+            }),
+            PropertyOutcome::NotApplicable
+        );
+
+        // Neither is a state observation, where no key was applied at all.
+        assert_eq!(
+            p.check(&Observation::State { view: &v }),
+            PropertyOutcome::NotApplicable
+        );
     }
 
     #[test]
@@ -305,29 +386,44 @@ mod tests {
         let p = only_adjustable_rows_move();
         let before = view(vec![Row::new("backend", "sol").selected()]);
         let after = view(vec![Row::new("backend", "other").selected()]);
-        let err = p
-            .check(&Observation::Transition {
-                from: &before,
-                key: Key::Right,
-                to: &after,
-                flow: Flow::Stay,
-            })
-            .expect_err("a non-adjustable row moved");
+        let err = refusal(p.check(&Observation::Transition {
+            from: &before,
+            key: Key::Right,
+            to: &after,
+            flow: Flow::Stay,
+        }));
         assert!(err.contains("not adjustable"), "{err}");
 
-        // The same move on an adjustable row is the point of the row.
+        // The same move on an adjustable row is the point of the row — and it
+        // is HELD, not NotApplicable. The domain is "an arrow on the cursor
+        // row"; the `adjustable` flag is the body. Read the other way, this
+        // property would be inapplicable at every observation of a component
+        // whose rows are all dials — the crate's own `Dial` and the README's
+        // `Volume` — and both would report Incomplete.
         let dial_before = view(vec![Row::new("tenacity", "auto").adjustable().selected()]);
         let dial_after = view(vec![Row::new("tenacity", "relaxed")
             .adjustable()
             .selected()]);
-        assert!(p
-            .check(&Observation::Transition {
+        assert_eq!(
+            p.check(&Observation::Transition {
                 from: &dial_before,
                 key: Key::Right,
                 to: &dial_after,
                 flow: Flow::Stay,
-            })
-            .is_ok());
+            }),
+            PropertyOutcome::Held
+        );
+
+        // A vertical key is outside the domain entirely.
+        assert_eq!(
+            p.check(&Observation::Transition {
+                from: &dial_before,
+                key: Key::Down,
+                to: &dial_after,
+                flow: Flow::Stay,
+            }),
+            PropertyOutcome::NotApplicable
+        );
     }
 
     /// **Every shipped property has an observation it REFUSES**, and the count
@@ -383,10 +479,11 @@ mod tests {
         ];
         for (name, outcome) in &refusals {
             assert!(
-                outcome.is_err(),
-                "`{name}` accepted the observation that must break it — a \
-                 property that cannot fail is decoration in the acceptance set \
-                 of every component that includes it"
+                matches!(outcome, PropertyOutcome::Violated(_)),
+                "`{name}` answered {outcome:?} to the observation that must \
+                 break it — a property that cannot fail is decoration in the \
+                 acceptance set of every component that includes it, and \
+                 NotApplicable is not a pass either"
             );
         }
 
@@ -416,21 +513,21 @@ mod tests {
         let p = escape_always_leaves_something();
         let open = view(vec![Row::new("a", ":w").selected()]);
         let closed = view(vec![Row::new("a", "").selected()]);
-        assert!(p
-            .check(&Observation::Transition {
+        assert_eq!(
+            p.check(&Observation::Transition {
                 from: &open,
                 key: Key::Esc,
                 to: &closed,
                 flow: Flow::Stay,
-            })
-            .is_ok(),);
-        assert!(p
-            .check(&Observation::Transition {
-                from: &open,
-                key: Key::Esc,
-                to: &open,
-                flow: Flow::Stay,
-            })
-            .is_err());
+            }),
+            PropertyOutcome::Held
+        );
+        assert!(refusal(p.check(&Observation::Transition {
+            from: &open,
+            key: Key::Esc,
+            to: &open,
+            flow: Flow::Stay,
+        }))
+        .contains("no way out"));
     }
 }

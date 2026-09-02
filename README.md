@@ -103,10 +103,18 @@ there is no shrinking step to trust, tune, or wait for.
 
 `report.verdict()` is `Clean`, `Violated`, or `Incomplete { reason, .. }`. The
 third is the one that matters: a search that stopped at a limit, that was
-handed no property, or that was handed no key comes back `Incomplete` and says
-which, because *no violations* and *nothing checked* are not the same claim and
-a boolean cannot tell them apart. `violations` is not a public field, so the
-weak assertion is not something a consumer can write by accident.
+handed no property, that was handed no key, or that was handed a property whose
+domain it never once reached comes back `Incomplete` and says which, because
+*no violations* and *nothing checked* are not the same claim and a boolean
+cannot tell them apart. `violations` is not a public field, so the weak
+assertion is not something a consumer can write by accident.
+
+That last reason is why a property answers with three outcomes and not a
+`Result`. `NotApplicable`, `Held`, `Violated` — because "no complaint" from a
+claim about Esc means one thing over an alphabet with Esc in it and nothing at
+all over one without, and `report.properties` carries the difference per
+property. Explore a dial over `[Key::Right]` with a claim about Esc and the
+report refuses to call it clean, naming the property that was never asked.
 
 **The corpus is the same walk.** `report.views` is every distinct view the
 search judged — including the view a component closed on, which is where
@@ -122,8 +130,9 @@ conformance artifact was the strict subset.
 An acceptance property is a named check over a state or a transition. The
 library ships the ones every component of this shape needs — the selection
 stays in range, a non-adjustable row never moves under an arrow, Esc always
-leaves without applying. Your component adds its own by writing a closure, not
-a test file.
+leaves without applying. Your component adds its own by writing a closure — one
+that returns `PropertyOutcome`, saying whether the observation was even its
+business — not a test file.
 
 Every one of them has an observation it REFUSES, and a test in `property.rs`
 pins the count to the module, so a property cannot be added without one. A
