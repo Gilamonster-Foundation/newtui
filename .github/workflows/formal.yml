@@ -1,0 +1,101 @@
+name: formal (TLA+ model + Lean obligation)
+
+# The formal layer: `spec/tla/` (a model of Explorer::explore over a
+# re-enterable world) and `formal/` (the Fingerprint congruence obligation as a
+# type). Read spec/tla/README.md and formal/README.md before citing either as
+# evidence — one binds four scalars to the crate and the other binds nothing.
+#
+# HOOK PARITY: .githooks/pre-push runs the CHEAP half of this workflow —
+# `no-sorry` (a grep) and `model` (one cargo run and a diff), both via
+# `just check`. The `lean`, `tla` and `mutations` jobs are CI-only BY DESIGN:
+# they need a Lean toolchain and a JRE plus a pinned 10 MB tla2tools.jar, and
+# requiring both in every developer's pre-push would be disproportionate — a
+# hook people route around is worse than no hook. This is the shape
+# newt-agent's formal.yml records as `HOOK PARITY: intentionally NONE`. The
+# same exception block is written in the justfile header and the hook header;
+# editing one means auditing the other two. `just formal` runs everything
+# locally.
+#
+# NO `paths:` FILTER, deliberately. The bridge (`ModelMatchesRust`) is bound to
+# `src/explore.rs`, so a change there MUST reach this workflow. A paths filter
+# scoped to `spec/**` and `formal/**` would let exactly the drift this layer
+# exists to catch skip the gate — the same shape as a `.tla` with no `.cfg`.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # FIRST, and before any toolchain is installed. A tree full of stubs should
+  # go red in seconds, not after a Lean install. `lake build` exits 0 on an
+  # unproven theorem, so this grep is the real gate.
+  no-sorry:
+    name: Stub gate (pure grep, no toolchain)
+    runs-on: ${{ vars.GMF_LINUX_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/check-lean-proofs.sh
+
+  lean:
+    name: Lean — the Fingerprint obligation
+    runs-on: ${{ vars.GMF_LINUX_RUNNER || 'ubuntu-latest' }}
+    needs: no-sorry
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install elan (Lean toolchain manager)
+        run: |
+          set -euo pipefail
+          curl -sSfL https://elan.lean-lang.org/elan-init.sh -o elan-init.sh
+          sh elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      # Checks every theorem. The toolchain is pinned in formal/lean-toolchain
+      # and `Newtui` is in lakefile.toml's defaultTargets — without that this
+      # step compiles an empty tree and passes.
+      - name: lake build
+        working-directory: formal
+        run: lake build
+
+  tla:
+    name: TLC — green configurations, then every mutation
+    runs-on: ${{ vars.GMF_LINUX_RUNNER || 'ubuntu-latest' }}
+    env:
+      # Cleared on purpose: check.sh must exercise its download-and-verify path
+      # on a clean runner, which is the path a fresh clone takes.
+      TLA2TOOLS_JAR: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Regression tests for the runner itself
+        run: spec/tla/test-check.sh
+      - name: Model-check every green configuration
+        id: check
+        run: spec/tla/check.sh | tee tla.out
+      # A green exit must mean specs were actually checked. check.sh prints the
+      # count; an absent or zero count is a pass that measured nothing.
+      - name: Assert specifications were actually checked
+        run: |
+          set -euo pipefail
+          n="$(sed -n 's/^tla-checked-count=//p' tla.out)"
+          [ -n "$n" ] || { echo "no tla-checked-count in output" >&2; exit 1; }
+          [ "$n" -ge 1 ] || { echo "tla-checked-count=$n" >&2; exit 1; }
+          echo "checked $n specification(s)"
+      # Every invariant needs a mutation that turns it red. This is the runner
+      # that makes that table executable instead of prose.
+      - name: Expected-red mutations
+        run: scripts/check-mutations.sh
+
+  bridge:
+    name: Model fidelity — RustObs.tla vs a real explore() run
+    runs-on: ${{ vars.GMF_LINUX_RUNNER || 'ubuntu-latest' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # The ONLY tie between the TLA+ module and src/. See spec/tla/README.md
+      # for what it binds and what it does not.
+      - run: scripts/check-model.sh
