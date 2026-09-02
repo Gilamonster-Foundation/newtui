@@ -1,16 +1,37 @@
 #!/usr/bin/env bash
-# The `sorry` gate — a REAL gate, not a badge.
+# The trusted-base gate — a REAL gate, not a badge. Three needles.
 #
-# `lake build` exits 0 on a `sorry`: an unproven theorem is a warning, not an
-# error, so "sorry-free" would otherwise be a human assertion that CI never
-# checks. This is the check that makes it mechanical. (newt-agent's `formal/`
-# has the identical gap; it is filed there, not fixed here.)
+# 1. `sorry`. `lake build` exits 0 on a `sorry`: an unproven theorem is a
+#    warning, not an error, so "sorry-free" would otherwise be a human assertion
+#    that CI never checks. This is the check that makes it mechanical.
+#    (newt-agent's `formal/` has the identical gap; it is filed there.)
 #
-# `native_decide` is refused on the same grounds. It discharges a goal by
-# running compiled code and adds `Lean.ofReduceBool` to the trusted base — the
-# compiler and the runtime join the kernel as things you have to believe. Every
-# `decide` in this tree is a kernel reduction, and `#print axioms` on the
-# generated theorems shows `propext` at most.
+# 2. `native_decide`, refused on the same grounds. It discharges a goal by
+#    running compiled code and adds `Lean.ofReduceBool` to the trusted base —
+#    the compiler and the runtime join the kernel as things you have to believe.
+#
+# 3. An `axiom` DECLARATION, and the audit line that must accompany every
+#    theorem. "Zero axioms" used to be REPORTED and not ENFORCED: this script
+#    rejected `sorry` and `native_decide` only, `#print axioms` printed an
+#    `info` message nobody's build depended on, and a future theorem backed by a
+#    new axiom would compile, print its dependency decoratively, and leave the
+#    gate green. Preservation was the defect, not today's numbers.
+#
+# WHAT EACH HALF CAN AND CANNOT SEE — the split matters:
+#
+#   * this script sees an `axiom` declared IN THIS TREE. It cannot see an axiom
+#     arriving from core (`Classical.choice` via `Classical.em` or
+#     `byContradiction`, `propext`, `Quot.sound`), because no new keyword
+#     appears in the file. Those are precisely the ones acquired by accident.
+#   * the `#guard_msgs in #print axioms` block in Fingerprint.lean sees ALL of
+#     them, from anywhere, because it pins the message and a mismatch is a build
+#     ERROR. But it only watches the declarations it names.
+#
+# So needle 3 has two parts: reject a declared `axiom`, AND require that every
+# `theorem` in the tree is named by a `#print axioms` line — closing the gap
+# where a new theorem simply lands outside the audit. Both are executed against
+# seeded mutations by `scripts/check-lean-mutations.sh`; a gate with no mutation
+# that turns it red is decoration.
 #
 # POSITIVE READ ASSERTION. An absence check fails OPEN: anything that shrinks
 # the scanned text makes it MORE likely to pass, so a moved directory or a typo
@@ -19,7 +40,9 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-formal="$root/formal"
+# NEWTUI_FORMAL_DIR exists so check-lean-mutations.sh can point this gate at a
+# seeded copy of the tree. Same shape as check.sh's TLA_SPEC_DIR.
+formal="${NEWTUI_FORMAL_DIR:-$root/formal}"
 
 # The floor is the HAND-WRITTEN tree — the root module and the model. It has
 # ZERO MARGIN at two files against a floor of two, which is fine but means
@@ -51,4 +74,56 @@ if grep -nE '\b(sorry|native_decide)\b' "${files[@]}"; then
   exit 1
 fi
 
-echo "check-lean-proofs: ${#files[@]} Lean files, no sorry and no native_decide."
+# ── Needle 3a: an `axiom` DECLARATION ───────────────────────────────────────
+# Line-anchored, unlike the needle above, and that is a deliberate difference.
+# A file whose job is auditing axioms says the word in prose constantly; a bare
+# \baxiom\b would fire on every sentence and the needle would be weakened within
+# a week, which is the failure mode the comment above warns about. A DECLARATION
+# opens a command, so it starts its line (after optional attributes/modifiers).
+# `#print axioms` and "does not depend on any axioms" are plural and never match.
+#
+# This is a smaller needle than "the word anywhere", so it is not the only
+# defence: needle 3b below forces every theorem into the `#guard_msgs` audit,
+# where an axiom from ANY source — including one this grep missed — changes the
+# pinned message and fails `lake build`.
+if grep -nE '^[[:space:]]*(@\[[^]]*\][[:space:]]*)*(private[[:space:]]+|protected[[:space:]]+|noncomputable[[:space:]]+)*axiom[[:space:]]' "${files[@]}"; then
+  echo >&2
+  echo "check-lean-proofs: an \`axiom\` declaration is above." >&2
+  echo "An axiom is an assumption the kernel will not check. Adding one makes" >&2
+  echo "every theorem downstream of it conditional, and \`lake build\` would" >&2
+  echo "still exit 0. Prove it, or state plainly in the pull request that this" >&2
+  echo "tree now has a non-empty trusted base and delete the zero-axiom claim." >&2
+  exit 1
+fi
+
+# ── Needle 3b: every theorem is named in the axiom audit ────────────────────
+# Without this, the audit is a subset, and a subset is where the next theorem
+# lands unwatched. Grep-only: a theorem name and a `#print axioms` line, no Lean
+# parsing.
+missing=0
+while read -r name; do
+  [ -n "$name" ] || continue
+  grep -qE "^[[:space:]]*#print axioms[[:space:]]+${name}[[:space:]]*$" "${files[@]}" || {
+    echo "check-lean-proofs: theorem '$name' has no '#print axioms $name' audit line." >&2
+    missing=$((missing + 1))
+  }
+done < <(grep -hoE '^[[:space:]]*(private[[:space:]]+|protected[[:space:]]+)*theorem[[:space:]]+[A-Za-z_][A-Za-z0-9_'"'"'!?]*' "${files[@]}" \
+         | sed -E 's/.*theorem[[:space:]]+//')
+
+if [ "$missing" -gt 0 ]; then
+  echo >&2
+  echo "$missing theorem(s) are outside the axiom audit. Add, next to the" >&2
+  echo "others in Fingerprint.lean's AxiomAudit section:" >&2
+  echo >&2
+  echo "    /-- info: 'Newtui.<name>' does not depend on any axioms -/" >&2
+  echo "    #guard_msgs in" >&2
+  echo "    #print axioms <name>" >&2
+  echo >&2
+  echo "\`#print axioms\` alone prints and passes. \`#guard_msgs\` is what makes" >&2
+  echo "the expected message a checked artifact instead of console decoration." >&2
+  exit 1
+fi
+
+audited="$(grep -hE '^[[:space:]]*#print axioms[[:space:]]' "${files[@]}" | wc -l | tr -d ' ')"
+echo "check-lean-proofs: ${#files[@]} Lean files, no sorry, no native_decide," \
+     "no axiom declaration, $audited audited declaration(s)."
