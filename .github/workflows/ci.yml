@@ -67,6 +67,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --all-targets --all-features --locked
 
+  mutations:
+    name: Expected-red (every guard catches a real defect)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # Builds a mutated copy of the crate per row and asserts the named guard
+      # goes RED. Without this job, every mutation table in this repo is prose.
+      - run: cargo test --test mutations -- --nocapture
+
   leaf:
     name: Leaf invariant (empty runtime closure)
     runs-on: ubuntu-latest
