@@ -41,6 +41,11 @@ struct Mutation {
     to: &'static str,
     /// The test that must FAIL, as `cargo test` prints it.
     expect_red: &'static str,
+    /// Extra cargo arguments. `--doc` for a doctest guard: `cargo test
+    /// <filter>` SKIPS doctests entirely, silently, which would hand this
+    /// runner a green from a section that never ran — the class again, in the
+    /// tool built to pin the class.
+    cargo_args: &'static [&'static str],
 }
 
 /// The table. One row per guard in this crate.
@@ -52,6 +57,7 @@ const MUTATIONS: &[Mutation] = &[
         from: "report.exhausted &= queue.is_empty()",
         to: "report.exhausted = queue.is_empty()",
         expect_red: "tests::a_depth_capped_search_is_a_sample_and_admits_it",
+        cargo_args: &[],
     },
     Mutation {
         defect: "a closing state's view is dropped from the corpus, which then \
@@ -64,6 +70,41 @@ const MUTATIONS: &[Mutation] = &[
                     report.terminal_states += 1;",
         to: "report.terminal_states += 1;",
         expect_red: "tests::the_corpus_holds_the_states_that_closed",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "the verdict stops reading `exhausted`, so a capped run is \
+                 Clean — bug 3c's weak assertion, back inside the crate",
+        file: "src/explore.rs",
+        from: "if !self.exhausted {",
+        to: "if false {",
+        expect_red: "tests::a_capped_search_is_a_sample_and_admits_it",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "a walk that checked no property is Clean (P6)",
+        file: "src/explore.rs",
+        from: "if self.properties_checked == 0 {",
+        to: "if false {",
+        expect_red: "tests::a_run_that_checked_nothing_is_not_a_clean_bill",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "a walk that applied no key is Clean (P6, the empty alphabet)",
+        file: "src/explore.rs",
+        from: "if self.transitions == 0 {",
+        to: "if false {",
+        expect_red: "tests::a_walk_over_an_empty_alphabet_is_not_a_clean_bill",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "the README's worked example stops holding — the shape it \
+                 shipped in: a row with dial chrome and no cursor on it",
+        file: "README.md",
+        from: ".adjustable().selected())",
+        to: ".adjustable())",
+        expect_red: "TheReadmeIsCompiledAndRun",
+        cargo_args: &["--doc"],
     },
 ];
 
@@ -102,7 +143,9 @@ fn every_guard_has_a_defect_it_provably_catches() {
         // compiling a whole terminal backend to run a test that shells out to
         // `cargo tree` anyway.
         let output = Command::new(env!("CARGO"))
-            .args(["test", "--no-default-features", mutation.expect_red])
+            .args(["test", "--no-default-features"])
+            .args(mutation.cargo_args)
+            .arg(mutation.expect_red)
             .current_dir(&mutant)
             .env("CARGO_TARGET_DIR", &shared_target)
             .output()
@@ -124,20 +167,27 @@ fn every_guard_has_a_defect_it_provably_catches() {
             mutation.defect,
         );
         // Non-zero is not enough: a compile error is also non-zero, and would
-        // pass a red for a green in disguise.
+        // pass a red for a green in disguise. `expect_red` is matched inside
+        // the harness's own result line rather than anywhere in the output, so
+        // a mention in a panic message does not count — and a doctest, whose
+        // printed name carries a line number, still matches.
+        let by_the_named_guard = printed.lines().any(|line| {
+            line.starts_with("test ")
+                && line.contains(mutation.expect_red)
+                && line.trim_end().ends_with("... FAILED")
+        });
         assert!(
-            printed.contains(&format!("{} ... FAILED", mutation.expect_red)),
+            by_the_named_guard,
             "the mutant for `{}` failed, but not by failing `{}` — so what went \
              red is not the guard:\n\n{printed}",
-            mutation.defect,
-            mutation.expect_red,
+            mutation.defect, mutation.expect_red,
         );
         checked += 1;
         std::fs::remove_dir_all(&mutant).expect("the mutant is removable");
     }
 
     assert!(
-        checked >= 2,
+        checked >= 6,
         "only {checked} mutations ran. This table may only GROW: a guard \
          removed from it is a guard nobody has seen fail."
     );

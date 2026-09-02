@@ -30,7 +30,7 @@ state it can reach rather than the three someone demoed.
 ## Interactive: three declarations, no I/O
 
 ```rust
-use newtui::{Component, Flow, Fingerprint, Key, Row, View};
+use newtui::{properties, Component, Explorer, Fingerprint, Flow, Key, Row, View};
 
 struct Volume { level: u8 }
 
@@ -46,16 +46,13 @@ impl Component for Volume {
     }
 
     fn view(&self) -> View {
-        View::titled("volume").row(Row::new("level", self.level.to_string()).adjustable())
+        View::titled("volume")
+            .row(Row::new("level", self.level.to_string()).adjustable().selected())
     }
 
     fn fingerprint(&self) -> Fingerprint { Fingerprint::of_view(&self.view()) }
 }
-```
 
-### Exhaustive, and the counterexample is minimal for free
-
-```rust
 let report = Explorer::new(Key::navigation())
     .explore(|| Volume { level: 50 }, &[
         &properties::selection_is_always_in_range(),
@@ -63,7 +60,32 @@ let report = Explorer::new(Key::navigation())
         &properties::only_adjustable_rows_move(),
     ]);
 
-assert!(report.violations.is_empty(), "{report}");
+assert!(report.is_clean(), "{report}");
+```
+
+This block is a doctest, so it compiles and runs on every `cargo test`. It is
+the only worked example the crate publishes — the idiom a consumer copies as
+their first acceptance test — and it once shipped both uncompilable and
+failing, which is a good argument for not letting an example be prose.
+
+`is_clean()`, not `violations.is_empty()`: the second is one conjunct of
+several, and it is the conjunct a capped, alphabet-less or property-less run
+satisfies for free. The violations are reachable through `report.verdict()`,
+where the completeness half is not optional — see **Three answers, not two**
+below.
+
+### Exhaustive, and the counterexample is minimal for free
+
+Drop the `.adjustable()` from that row — so the renderer promises a plain
+value and an arrow moves it anyway — and the same three lines say:
+
+```text
+11 states, 66 transitions, 22 terminal, 3 properties
+1 violations:
+
+only adjustable rows move
+  after: Left
+  `level` is not adjustable but Left changed it from `50` to `40`
 ```
 
 Two properties of the search matter more than the word *exhaustive*:
@@ -76,6 +98,15 @@ combinatorial explosion.
 **Breadth-first means the first path to a violation is the shortest one.** A
 failure reports the minimal key sequence that reaches it, by construction —
 there is no shrinking step to trust, tune, or wait for.
+
+### Three answers, not two
+
+`report.verdict()` is `Clean`, `Violated`, or `Incomplete { reason, .. }`. The
+third is the one that matters: a search that stopped at a limit, that was
+handed no property, or that was handed no key comes back `Incomplete` and says
+which, because *no violations* and *nothing checked* are not the same claim and
+a boolean cannot tell them apart. `violations` is not a public field, so the
+weak assertion is not something a consumer can write by accident.
 
 **The corpus is the same walk.** `report.views` is every distinct view the
 search judged — including the view a component closed on, which is where

@@ -44,10 +44,24 @@ mod property;
 mod view;
 
 pub use component::{Component, Fingerprint, Flow};
-pub use explore::{Explorer, Report, Violation};
+pub use explore::{Explorer, Report, Verdict, Violation};
 pub use key::Key;
 pub use property::{properties, Named, Observation, Property};
 pub use view::{Row, View};
+
+/// The README's example is compiled and RUN, not read and believed.
+///
+/// It is the only worked example the crate publishes, so it is the idiom every
+/// consumer copies as their first acceptance test — and it shipped both
+/// uncompilable (its `use` was missing two names) and, once fixed, failing (an
+/// `.adjustable()` row with no `.selected()`). An example nobody compiles is
+/// the same class of claim as a search that reports itself exhaustive.
+///
+/// `cfg(doctest)` rather than `#![doc = include_str!(..)]`: the crate's own
+/// front-page docs are the module comment above, not the README.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct TheReadmeIsCompiledAndRun;
 
 #[cfg(test)]
 mod tests {
@@ -165,9 +179,7 @@ mod tests {
 
         let report = check(|| Door { walked: 0 });
         let violation = report
-            .violations
-            .iter()
-            .find(|v| v.property == "only adjustable rows move")
+            .violation("only adjustable rows move")
             .unwrap_or_else(|| panic!("the door's dialling must be caught: {report}"));
         assert_eq!(
             violation.path,
@@ -204,9 +216,7 @@ mod tests {
 
         let report = check(|| Trap { deep: false });
         let violation = report
-            .violations
-            .iter()
-            .find(|v| v.property == "escape always closes without applying")
+            .violation("escape always closes without applying")
             .unwrap_or_else(|| panic!("the trap must be caught: {report}"));
         assert_eq!(violation.path, vec![Key::Down, Key::Esc], "{violation}");
     }
@@ -230,9 +240,13 @@ mod tests {
             }
         }
 
+        // A real property, so the CAP is the only thing that can make this
+        // report incomplete — a test that would go red for two reasons cannot
+        // say which one it is pinning.
+        let in_range = properties::selection_is_always_in_range();
         let report = Explorer::new([Key::Right])
             .max_states(10)
-            .explore(|| Endless { n: 0 }, &[]);
+            .explore(|| Endless { n: 0 }, &[&in_range]);
         assert!(!report.exhausted, "an unbounded dial cannot be exhausted");
         assert!(!report.is_clean(), "a sample is not a clean bill of health");
         assert!(
@@ -276,7 +290,8 @@ mod tests {
 
         // The dial is finite and the state count is far under `max_states`, so
         // depth is the ONLY limit that can bind here.
-        let report = Explorer::new([Key::Right]).explore(|| LongDial { n: 0 }, &[]);
+        let in_range = properties::selection_is_always_in_range();
+        let report = Explorer::new([Key::Right]).explore(|| LongDial { n: 0 }, &[&in_range]);
         assert!(
             report.states <= 65,
             "the default depth cap truncates this walk: {report}"
@@ -292,9 +307,41 @@ mod tests {
         // the search rather than being pessimistic about everything.
         let full = Explorer::new([Key::Right])
             .max_depth(600)
-            .explore(|| LongDial { n: 0 }, &[]);
+            .explore(|| LongDial { n: 0 }, &[&in_range]);
         assert_eq!(full.states, 501, "0..=500: {full}");
         assert!(full.exhausted && full.is_clean(), "{full}");
+    }
+
+    /// **A walk that checked no property is not a clean bill** — P6.
+    ///
+    /// It finished, it hit no limit, and it judged nothing: `is_clean()` used
+    /// to return true, and a report carried no count that could tell you. The
+    /// degenerate case of the crate's own discipline — a search reports what it
+    /// looked at, and "nothing" is a thing to report.
+    #[test]
+    fn a_run_that_checked_nothing_is_not_a_clean_bill() {
+        let report = Explorer::new(Key::navigation()).explore(dial, &[]);
+        assert!(report.exhausted, "the walk itself finished: {report}");
+        assert!(!report.is_clean(), "but it judged nothing: {report}");
+        assert!(
+            matches!(report.verdict(), Verdict::Incomplete { reason, .. }
+                     if reason.contains("NO PROPERTY")),
+            "and says which vacuity it is: {report}"
+        );
+    }
+
+    /// **A walk over an empty alphabet is not a clean bill** — P6, the other
+    /// half. No key was ever applied, so every property held over exactly one
+    /// state: the start. `Explorer::new`'s own doc encourages trimming the
+    /// alphabet, and the empty trim is a proof about nothing.
+    #[test]
+    fn a_walk_over_an_empty_alphabet_is_not_a_clean_bill() {
+        let owned = acceptance();
+        let refs: Vec<&dyn Property> = owned.iter().map(AsRef::as_ref).collect();
+        let report = Explorer::new(Vec::new()).explore(dial, &refs);
+        assert_eq!(report.transitions, 0, "no key exists to apply: {report}");
+        assert!(report.exhausted, "and nothing capped it: {report}");
+        assert!(!report.is_clean(), "which proves nothing: {report}");
     }
 
     /// The recorded corpus is the states themselves — data a reimplementation
