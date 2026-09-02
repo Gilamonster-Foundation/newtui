@@ -120,9 +120,27 @@ pilot should not also be solving that.
   without applying, only adjustable rows move, plus its own — a dial only ever
   produces a value the vocabulary accepts.
 
+### The numeric dial is part of the vocabulary, and must arrive bounded
+
+`Field::Rounds` is `1..=10_000` (`RELENTLESS_TOOL_ROUND_TARGET`), stepped one
+integer per keypress, and every value is a distinct fingerprint. So the real
+panel has ~10,000 states on that row alone, and roughly 29 million in the
+cross-product with the other seven — an exhaustive walk is not merely slow, it
+is not a thing.
+
+Measured, against the real explorer: the true vocabulary hits `max_states` at
+50,000 with `exhausted: false`; a bounded rounds space of five values gives
+17,280 states, `exhausted: true`, in 232 ms.
+
+So the numeric bound arrives as data like every other vocabulary, and newtui
+explores it over `{release, min, min+1, max-1, max}`. **The 10,000-step walk
+proves nothing the five boundary values do not** — newt's own
+`settings_panel.rs` already reasons this way, probing release/min/max rather
+than walking the range.
+
 **Acceptance:** newt's `/settings` behaves identically (its existing 16 tests
-pass unchanged against the adapter), and `newtui` explores the component
-exhaustively with zero violations and `exhausted: true`.
+pass unchanged against the adapter), and `newtui` explores the component over a
+bounded vocabulary with zero violations and `exhausted: true`.
 
 ---
 

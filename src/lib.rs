@@ -227,6 +227,62 @@ mod tests {
         );
     }
 
+    /// **A DEPTH-capped search is a sample too**, and says so.
+    ///
+    /// The regression this pins was live in the first commit: the depth arm
+    /// set `exhausted = false`, and the assignment at the end of the search
+    /// then overwrote it unconditionally. Since the loop only exits with an
+    /// empty queue, that assignment was always `true` — so a truncated run
+    /// reported itself exhaustive and `is_clean()` agreed. A 500-position dial
+    /// came back as "65 states, exhausted", having seen 13% of them.
+    ///
+    /// Found by an adversarial critique of the work-package plan, before a
+    /// package author could hit it: package A's acceptance is this crate's
+    /// first real `exhausted: true`, and an implementer raising a limit to get
+    /// there would have been handed a false green.
+    ///
+    /// The `max_states` arm was already covered. This is the other one, which
+    /// is the lesson: two limits, and the test only knew about one.
+    #[test]
+    fn a_depth_capped_search_is_a_sample_and_admits_it() {
+        struct LongDial {
+            n: u32,
+        }
+        impl Component for LongDial {
+            fn handle(&mut self, key: Key) -> Flow {
+                if key == Key::Right && self.n < 500 {
+                    self.n += 1;
+                }
+                Flow::Stay
+            }
+            fn view(&self) -> View {
+                View::titled("dial").row(Row::new("n", self.n.to_string()).selected())
+            }
+        }
+
+        // The dial is finite and the state count is far under `max_states`, so
+        // depth is the ONLY limit that can bind here.
+        let report = Explorer::new([Key::Right]).explore(|| LongDial { n: 0 }, &[]);
+        assert!(
+            report.states <= 65,
+            "the default depth cap truncates this walk: {report}"
+        );
+        assert!(!report.exhausted, "and the report must say so: {report}");
+        assert!(!report.is_clean(), "a truncated walk is not a clean bill");
+        assert!(
+            report.to_string().contains("STOPPED AT A LIMIT"),
+            "in words, not just a flag: {report}"
+        );
+
+        // Given depth enough, the same dial IS exhausted — so the flag tracks
+        // the search rather than being pessimistic about everything.
+        let full = Explorer::new([Key::Right])
+            .max_depth(600)
+            .explore(|| LongDial { n: 0 }, &[]);
+        assert_eq!(full.states, 501, "0..=500: {full}");
+        assert!(full.exhausted && full.is_clean(), "{full}");
+    }
+
     /// The recorded corpus is the states themselves — data a reimplementation
     /// can be held to without sharing code with this one.
     #[test]

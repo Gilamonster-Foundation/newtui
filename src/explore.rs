@@ -163,7 +163,14 @@ impl Explorer {
         factory: impl Fn() -> C,
         properties: &[&dyn Property],
     ) -> Report {
-        let mut report = Report::default();
+        // Starts TRUE and is only ever cleared. Every path that stops early
+        // must be able to say so, and a later unconditional assignment would
+        // erase an earlier one — see the depth arm below, which is exactly
+        // that bug.
+        let mut report = Report {
+            exhausted: true,
+            ..Report::default()
+        };
         let mut seen: HashSet<Fingerprint> = HashSet::new();
         // The shortest path to each state, so a violation can be reproduced.
         let mut queue: VecDeque<Vec<Key>> = VecDeque::new();
@@ -186,6 +193,13 @@ impl Explorer {
 
         while let Some(path) = queue.pop_front() {
             if path.len() >= self.max_depth {
+                // Truncated here. This used to be silently undone: the
+                // assignment at the end of the search overwrote it
+                // unconditionally, and since the loop only exits with an EMPTY
+                // queue, a depth-capped run reported `exhausted: true` and
+                // `is_clean() == true`. A 500-position dial came back as "65
+                // states, exhausted" — the crate's headline claim, failing
+                // silently, in the one place it is supposed to be honest.
                 report.exhausted = false;
                 continue;
             }
@@ -249,9 +263,10 @@ impl Explorer {
                 }
             }
         }
-        // Ran out of frontier rather than hitting a limit: the search saw
-        // everything reachable.
-        report.exhausted = queue.is_empty() && report.states < self.max_states;
+        // Ran out of frontier rather than hitting a limit. `&=` rather than
+        // `=`: this narrows the claim, it never restores it, so a depth
+        // truncation recorded above survives to the report.
+        report.exhausted &= queue.is_empty() && report.states < self.max_states;
         report
     }
 
