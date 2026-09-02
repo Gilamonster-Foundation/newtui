@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# newtui pre-push hook.
+#
+# Install with:  git config core.hooksPath .githooks
+#
+# PIPELINE PARITY: this hook mirrors .github/workflows/ci.yml (every job) and
+# the CHEAP half of .github/workflows/formal.yml. When you edit either
+# workflow, update this file to match; when you edit this file, check both.
+# The justfile header carries the same split, and so does formal.yml's.
+#
+# WHAT IS DELIBERATELY NOT HERE, and why — this is the written exception block
+# the parity rule requires, and it is repeated verbatim in the justfile header
+# and in formal.yml's header:
+#
+#   `lean`   needs a Lean toolchain (elan + a pinned lean4 release).
+#   `tla`    needs a JRE and a pinned 10 MB tla2tools.jar.
+#   `mutations` needs the same JRE and jar, and runs nine TLC invocations.
+#
+# Requiring a Lean install and a JVM in every developer's pre-push would be
+# disproportionate, and a hook people route around is worse than no hook. Those
+# three are CI-only BY DESIGN — the shape newt-agent's formal.yml records as
+# `HOOK PARITY: intentionally NONE`. `just formal` runs them locally.
+#
+# What IS here from the formal layer is everything that costs nothing:
+# `no-sorry` (a grep) and `model` (one cargo run and a diff). A gate that takes
+# milliseconds has no excuse for being CI-only.
+#
+# stdout is redirected to stderr for the whole hook. A hook that writes to
+# stdout can inject bytes into git's remote-helper protocol and corrupt an
+# HTTPS push — invisible over SSH, so it is not caught by testing one remote.
+exec 1>&2
+set -euo pipefail
+
+if command -v just >/dev/null 2>&1; then
+  just check
+else
+  echo "pre-push: 'just' not found — running the gate directly." >&2
+  cargo fmt -- --check
+  cargo clippy --all-targets --all-features -- -D warnings
+  cargo clippy --all-targets --no-default-features -- -D warnings
+  cargo test --all-features
+  cargo test --no-default-features
+  RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
+  cargo test --test leaf
+  scripts/check-lean-proofs.sh
+  scripts/check-model.sh
+fi

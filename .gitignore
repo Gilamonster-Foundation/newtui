@@ -13,3 +13,14 @@
 # --- editors / OS ---
 *.swp
 .DS_Store
+
+# --- formal layer ---
+# Lake's build tree. `formal/lake-manifest.json` IS committed (packages: [],
+# so the "manifest" is the claim that the Lean tree has no dependencies at
+# all — the LEAF invariant, one layer up).
+/formal/.lake
+
+# TLC writes a states/ scratch metadir into its cwd; spec/tla/check.sh runs
+# in the spec directory. Also covered by spec/tla/.gitignore.
+/spec/tla/states
+/spec/tla/mutations/states
