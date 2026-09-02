@@ -44,7 +44,9 @@ mod property;
 mod view;
 
 pub use component::{Component, Fingerprint, Flow};
-pub use explore::{Explorer, PropertyCoverage, Report, Verdict, Violation};
+pub use explore::{
+    Divergence, DivergenceReason, Explorer, PropertyCoverage, Report, Verdict, Violation,
+};
 pub use key::Key;
 pub use property::{properties, Named, Observation, Property, PropertyOutcome};
 pub use view::{Row, View};
@@ -607,5 +609,239 @@ mod tests {
         // views and 8 closing ones. The deleted walk called 4 of the 12
         // "complete".
         assert_eq!(report.views.len(), 12, "4 open, 8 closing: {footers:?}");
+    }
+
+    // --- the replay guard --------------------------------------------------
+
+    /// A counter whose factory can DRIFT: the first `agrees_for` products
+    /// start at 0, every one after that starts at 1.
+    ///
+    /// This is what an impure factory looks like in miniature — a cached read,
+    /// a clock, a `OnceLock` filled by an earlier test, a pre-warmed buffer.
+    /// The important half is `agrees_for`: a factory that misbehaved on call
+    /// one would be caught by almost anything, and is not the interesting case.
+    struct Counter {
+        level: u8,
+        /// Closes on Right instead of counting — the drifted machine that is
+        /// not merely at a different level but a different SHAPE.
+        brittle: bool,
+    }
+
+    impl Component for Counter {
+        fn handle(&mut self, key: Key) -> Flow {
+            match key {
+                Key::Right if self.brittle => Flow::Close(false),
+                Key::Right => {
+                    self.level = (self.level + 1).min(3);
+                    Flow::Stay
+                }
+                Key::Esc => Flow::Close(false),
+                _ => Flow::Stay,
+            }
+        }
+
+        fn view(&self) -> View {
+            View::titled("counter").row(
+                Row::new("level", self.level.to_string())
+                    .selected()
+                    .adjustable(),
+            )
+        }
+    }
+
+    /// A factory that counts its own products, so a test can say WHEN it drifts.
+    struct Drifting {
+        built: std::cell::Cell<usize>,
+        agrees_for: usize,
+        brittle_after: Option<usize>,
+    }
+
+    impl Drifting {
+        fn new(agrees_for: usize) -> Self {
+            Self {
+                built: std::cell::Cell::new(0),
+                agrees_for,
+                brittle_after: None,
+            }
+        }
+
+        fn brittle_after(mut self, n: usize) -> Self {
+            self.brittle_after = Some(n);
+            self
+        }
+
+        fn build(&self) -> Counter {
+            let n = self.built.get();
+            self.built.set(n + 1);
+            Counter {
+                level: u8::from(n >= self.agrees_for),
+                brittle: self.brittle_after.is_some_and(|after| n >= after),
+            }
+        }
+    }
+
+    fn walk(factory: impl Fn() -> Counter) -> Report {
+        let owned = acceptance();
+        let refs: Vec<&dyn Property> = owned.iter().map(AsRef::as_ref).collect();
+        Explorer::new([Key::Right, Key::Esc]).explore(factory, &refs)
+    }
+
+    /// A deterministic factory replays to the same state every time, so the
+    /// guard is silent and the walk is exactly what it was before.
+    ///
+    /// The anti-vacuous half of every test below: a guard that fired on an
+    /// ordinary pure component would be useless however well it caught the
+    /// impure ones, and nothing else here would notice.
+    #[test]
+    fn a_deterministic_factory_replays_where_discovery_said() {
+        let report = walk(|| Counter {
+            level: 0,
+            brittle: false,
+        });
+        assert!(
+            report.divergences().is_empty(),
+            "a pure factory diverged from itself: {:?}",
+            report.divergences()
+        );
+        assert!(
+            matches!(report.verdict(), Verdict::Clean),
+            "{report}\n{:?}",
+            report.verdict()
+        );
+    }
+
+    /// **A replay that lands somewhere else makes the report INCOMPLETE**, and
+    /// it is not a property violation.
+    ///
+    /// Nothing about the component has been shown to be wrong. What has been
+    /// shown is that the harness walked one machine and judged another, so the
+    /// honest answer is that this report clears nothing — the same answer a
+    /// capped run gets, for a worse reason.
+    // GUARD: tests::a_replay_that_lands_elsewhere_is_not_a_clean_bill — this is a guard; tests/mutations.rs must show it red.
+    #[test]
+    fn a_replay_that_lands_elsewhere_is_not_a_clean_bill() {
+        // Agrees for the initial build and the first reconstruction, then
+        // drifts — so discovery is consistent and a LATER replay is not.
+        let drifting = Drifting::new(2);
+        let report = walk(|| drifting.build());
+
+        assert!(
+            !report.divergences().is_empty(),
+            "the factory changed its product mid-walk and nothing noticed: \
+             {report}"
+        );
+        match report.verdict() {
+            Verdict::Incomplete { reason, .. } => assert!(
+                reason.contains("REPLAY"),
+                "incomplete for the wrong reason: {reason}"
+            ),
+            other => panic!("a walk over a drifting factory was {other:?}: {report}"),
+        }
+        assert!(
+            !report.is_clean(),
+            "a report from a machine that was never walked called itself clean"
+        );
+    }
+
+    /// A component that CLOSES partway through a replay is a divergence too,
+    /// and a distinguishable one.
+    ///
+    /// This is the case a fingerprint comparison alone would report as an
+    /// ordinary mismatch and misdiagnose: the replay did not arrive at another
+    /// state, it stopped being able to receive keys at all. Every remaining key
+    /// in the path would have been delivered to a closed component.
+    // GUARD: tests::a_replay_that_closes_early_is_caught_as_such — this is a guard; tests/mutations.rs must show it red.
+    #[test]
+    fn a_replay_that_closes_early_is_caught_as_such() {
+        // Level never drifts; the SHAPE does, after the frontier has been
+        // built, so a path of length >= 1 is replayed into a component that
+        // closes on the key it used to count with.
+        let drifting = Drifting::new(usize::MAX).brittle_after(3);
+        let report = walk(|| drifting.build());
+
+        let closed_early = report
+            .divergences()
+            .iter()
+            .any(|d| matches!(d.reason, DivergenceReason::ClosedDuringReplay { .. }));
+        assert!(
+            closed_early,
+            "a component that closed DURING replay was not reported as such: \
+             {:?}",
+            report.divergences()
+        );
+        assert!(!report.is_clean(), "{report}");
+    }
+
+    /// **Nothing is judged from a departure point already known to be wrong.**
+    ///
+    /// The divergence is detected before the outgoing key is applied, so the
+    /// walk records no transition from there — a violation found on that
+    /// machine would be reported against a path that does not reach it.
+    ///
+    /// It also pins the ORDER of the incompleteness reasons. This walk has zero
+    /// transitions, and "NO KEY WAS EVER APPLIED" is true of it; the reason it
+    /// must give is the divergence, because that is the one that explains why
+    /// no key was applied.
+    // GUARD: tests::a_diverged_departure_judges_nothing — this is a guard; tests/mutations.rs must show it red.
+    #[test]
+    fn a_diverged_departure_judges_nothing() {
+        // Drifts on the very first reconstruction: the initial build is level
+        // 0, every product after it is level 1, so the empty path replays to
+        // the wrong state before a single key is pressed.
+        let drifting = Drifting::new(1);
+        let report = walk(|| drifting.build());
+
+        assert_eq!(
+            report.transitions, 0,
+            "a key was applied to a machine the search never explored: {report}"
+        );
+        assert!(report
+            .violations_named("selection is always in range")
+            .is_empty());
+        match report.verdict() {
+            Verdict::Incomplete { reason, violations } => {
+                assert!(
+                    reason.contains("REPLAY"),
+                    "the divergence is the reason that explains the others, so \
+                     it must be the one reported, not {reason:?}"
+                );
+                assert!(violations.is_empty(), "{violations:?}");
+            }
+            other => panic!("{other:?}: {report}"),
+        }
+    }
+
+    /// A divergence prints the path and BOTH fingerprints.
+    ///
+    /// The point of the guard is diagnosis: a factory that is not reproducing
+    /// its own states is a bug in the caller's test setup, and "something was
+    /// inconsistent" would send them looking in the wrong place.
+    #[test]
+    fn a_divergence_says_enough_to_diagnose_it() {
+        let drifting = Drifting::new(2);
+        let report = walk(|| drifting.build());
+        let first = report
+            .divergences()
+            .first()
+            .expect("the drifting factory diverged");
+        let printed = first.to_string();
+
+        assert!(
+            printed.contains("expected") && printed.contains("actual"),
+            "{printed}"
+        );
+        assert_ne!(
+            first.expected, first.actual,
+            "a divergence whose two fingerprints are equal is not one"
+        );
+        assert!(
+            printed.contains(&first.expected.to_string())
+                && printed.contains(&first.actual.to_string()),
+            "the fingerprints are not in the message: {printed}"
+        );
+        assert!(
+            first.path.is_empty() || printed.contains(&first.path[0].to_string()),
+            "the path is not in the message: {printed}"
+        );
     }
 }

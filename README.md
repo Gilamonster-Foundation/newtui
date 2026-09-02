@@ -103,8 +103,9 @@ there is no shrinking step to trust, tune, or wait for.
 
 `report.verdict()` is `Clean`, `Violated`, or `Incomplete { reason, .. }`. The
 third is the one that matters: a search that stopped at a limit, that was
-handed no property, that was handed no key, or that was handed a property whose
-domain it never once reached comes back `Incomplete` and says which, because
+handed no property, that was handed no key, that was handed a property whose
+domain it never once reached, or **whose replay did not land where discovery
+said it would**, comes back `Incomplete` and says which, because
 *no violations* and *nothing checked* are not the same claim and a boolean
 cannot tell them apart. `violations` is not a public field, so the weak
 assertion is not something a consumer can write by accident.
@@ -115,6 +116,17 @@ claim about Esc means one thing over an alphabet with Esc in it and nothing at
 all over one without, and `report.properties` carries the difference per
 property. Explore a dial over `[Key::Right]` with a claim about Esc and the
 report refuses to call it clean, naming the property that was never asked.
+
+**The walk checks its own reconstruction.** Each state is reached by replaying
+its key path into a fresh component from your factory, so the search is only
+sound if that replay arrives where the search said it would. It is compared,
+per reconstruction, against the fingerprint recorded at discovery — an impure
+factory (a cached read, a clock, a `OnceLock` an earlier test filled) makes the
+report `Incomplete` with the path and both fingerprints, instead of quietly
+judging a machine the search never explored. What that establishes is
+within-run consistency: a factory that is *consistently* pre-warmed is
+self-consistent and passes, and `Report::divergences` documents that residual
+rather than glossing it.
 
 **The corpus is the same walk.** `report.views` is every distinct view the
 search judged — including the view a component closed on, which is where

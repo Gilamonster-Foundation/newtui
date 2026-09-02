@@ -23,6 +23,13 @@
 //! closures that cannot be cloned), and every state in the report is reachable
 //! from a real start — a cloned mid-search state can drift from anything a
 //! session could actually produce.
+//!
+//! It also costs something the clone would not: the replay has to LAND where
+//! the search said it would, and for most of this crate's life nothing checked
+//! that it did. Every reconstruction now carries the fingerprint recorded when
+//! its path was discovered and is compared against it before a single outgoing
+//! key is applied — see [`Divergence`] for what that establishes and what it
+//! deliberately does not.
 
 use std::collections::{HashSet, VecDeque};
 
@@ -64,6 +71,116 @@ pub struct Violation {
     pub path: Vec<Key>,
     /// What went wrong, phrased for whoever reads the failure.
     pub detail: String,
+}
+
+/// A state on the frontier: how to get there, and where getting there landed.
+///
+/// The queue used to hold the path alone. The fingerprint travels with it
+/// because it is the only record of what the path MEANT when it was walked —
+/// taken at discovery, from the instance that actually reached the state. A
+/// replay that arrives somewhere else is then a checkable fact rather than an
+/// assumption, which is the whole of the replay guard.
+struct Departure {
+    path: Vec<Key>,
+    expected: Fingerprint,
+}
+
+/// A reconstruction that did not land where the search said it would.
+///
+/// The explorer reaches a state by replaying its key path into a FRESH
+/// component from the factory — see the module header for why. That is only
+/// sound if the replay ARRIVES at the state discovery recorded. Nothing checked
+/// it, and so an impure factory — a cached file read, a clock, a counter, a
+/// pre-warmed buffer, a `OnceLock` filled by an earlier test — could hand the
+/// walk a different machine from the one it explored, and every judgement made
+/// from that departure point would be about that other machine while the report
+/// spoke about this one.
+///
+/// A divergence makes the whole report [`Verdict::Incomplete`]. It is NOT a
+/// property violation: nothing about the component has been shown to be wrong,
+/// and saying so would be its own false claim. What has been shown is that the
+/// harness cannot stand behind what it walked.
+///
+/// # What an empty divergence list establishes, exactly
+///
+/// **Within-run replay consistency, and nothing more.** Every reconstruction
+/// the walk judged from arrived at the state discovery recorded for it. That
+/// is the property the search's soundness actually rests on, and it was
+/// previously assumed rather than checked.
+///
+/// It does **not** establish that the first product of the factory was the
+/// component the caller meant to test. A factory that is consistently
+/// pre-warmed, or consistently wrong, produces internally consistent
+/// observations from the first build onwards and this guard is silent for all
+/// of them — correctly, because there is nothing here to compare such a
+/// factory against. Every state in the report would be real, reachable and
+/// faithfully judged; they would just belong to a machine the caller did not
+/// intend.
+///
+/// That residual is stated here rather than folded into the stronger-sounding
+/// claim, because the difference between *the walk is self-consistent* and
+/// *the walk is about the right component* is exactly the kind of gap this
+/// crate exists to keep visible. Closing it needs something the harness cannot
+/// see from inside: a caller-declared expectation of the initial state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Divergence {
+    /// The key path being replayed — the same minimal sequence a violation
+    /// carries, so the two are reproduced the same way.
+    pub path: Vec<Key>,
+    /// The fingerprint recorded when this state was DISCOVERED.
+    pub expected: Fingerprint,
+    /// The fingerprint the reconstruction actually arrived at.
+    pub actual: Fingerprint,
+    /// How the replay departed.
+    pub reason: DivergenceReason,
+}
+
+/// How a replay departed from the state discovery recorded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DivergenceReason {
+    /// The replay ran to the end of the path and arrived somewhere else.
+    DifferentState,
+    /// The component CLOSED partway through the replay, at this index into the
+    /// path. The state was discovered as one that accepts more keys, so a
+    /// close here means the machine being replayed is not the machine that was
+    /// walked — and every remaining key would be delivered to a closed
+    /// component.
+    ClosedDuringReplay {
+        /// Index into [`Divergence::path`] of the key that closed it.
+        at: usize,
+    },
+}
+
+impl core::fmt::Display for Divergence {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let path = if self.path.is_empty() {
+            "(the initial state)".to_string()
+        } else {
+            self.path
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
+        write!(f, "replaying: {path}\n  ")?;
+        match self.reason {
+            DivergenceReason::DifferentState => write!(
+                f,
+                "the replay arrived at a DIFFERENT state than discovery did"
+            )?,
+            DivergenceReason::ClosedDuringReplay { at } => write!(
+                f,
+                "the component CLOSED during replay, at key {} of {}",
+                at + 1,
+                self.path.len()
+            )?,
+        }
+        write!(
+            f,
+            "\n  expected: {}\n  actual:   {}",
+            self.expected, self.actual
+        )
+    }
 }
 
 impl core::fmt::Display for Violation {
@@ -108,6 +225,13 @@ pub struct Report {
     /// assertion that cannot refuse a capped run. Read them through
     /// [`Report::verdict`], where the completeness half is not optional.
     violations: Vec<Violation>,
+    /// Every reconstruction that did not land where discovery said it would.
+    ///
+    /// PRIVATE for the same reason `violations` is: the interesting question is
+    /// what the report AMOUNTS TO, and a consumer who reads this field directly
+    /// can write the emptiness test that the verdict exists to refuse. Read it
+    /// through [`Report::divergences`], which is a diagnosis, not a gate.
+    divergences: Vec<Divergence>,
     /// Every DISTINCT view judged, in discovery order — the corpus half of the
     /// harness: a recorded set of states a REIMPLEMENTATION can be held to, in
     /// another language or another framework, without sharing a line of code
@@ -200,6 +324,17 @@ impl Report {
     /// that explains the most: an empty alphabet also makes every transition
     /// property inapplicable, and "no key was ever applied" is the finding.
     fn incomplete_because(&self) -> Option<&'static str> {
+        // FIRST, because it explains the most and because it is the one reason
+        // that impeaches the walk itself rather than its extent. Every other
+        // reason here says "I did not look far enough"; this one says "what I
+        // looked at may not have been the component you asked about".
+        if !self.divergences.is_empty() {
+            return Some(
+                "A REPLAY DID NOT LAND WHERE DISCOVERY SAID — the factory is \
+                 not reproducing the states that were walked, so this report \
+                 is about no single machine. See `Report::divergences`",
+            );
+        }
         if !self.exhausted {
             return Some("STOPPED AT A LIMIT — this is a sample, not a proof");
         }
@@ -216,6 +351,17 @@ impl Report {
             );
         }
         None
+    }
+
+    /// Every reconstruction that did not land where discovery said it would.
+    ///
+    /// Empty is the healthy answer, and it is the ONLY reading of this that is
+    /// evidence of anything: a non-empty list says the walk cannot be trusted,
+    /// while an empty one says only that no departure was caught — see
+    /// [`Divergence`] for what that does and does not establish.
+    #[must_use]
+    pub fn divergences(&self) -> &[Divergence] {
+        &self.divergences
     }
 
     /// The properties this walk never got to judge — supplied, walked past, and
@@ -361,8 +507,10 @@ impl Explorer {
             ..Report::default()
         };
         let mut seen: HashSet<Fingerprint> = HashSet::new();
-        // The shortest path to each state, so a violation can be reproduced.
-        let mut queue: VecDeque<Vec<Key>> = VecDeque::new();
+        // The shortest path to each state, so a violation can be reproduced —
+        // WITH the fingerprint that path arrived at when it was discovered, so
+        // that a replay of it can be asked whether it landed there again.
+        let mut queue: VecDeque<Departure> = VecDeque::new();
         // Reported once per property, keyed on its POSITION in the set rather
         // than on its name: the same broken rule reached by forty paths is one
         // defect, but two DIFFERENT claims that happen to share a name are two,
@@ -376,22 +524,17 @@ impl Explorer {
         // a closing state never enters `seen` at all.
         let mut recorded: HashSet<View> = HashSet::new();
 
-        let start = factory();
-        let start_view = start.view();
-        seen.insert(start.fingerprint());
-        recorded.insert(start_view.clone());
-        report.views.push(start_view.clone());
-        report.states = 1;
-        Self::check(
+        queue.push_back(Self::seed(
+            &factory,
             properties,
-            &Observation::State { view: &start_view },
-            &[],
             &mut report,
             &mut reported,
-        );
-        queue.push_back(Vec::new());
+            &mut seen,
+            &mut recorded,
+        ));
 
-        while let Some(path) = queue.pop_front() {
+        while let Some(departure) = queue.pop_front() {
+            let path = &departure.path;
             if path.len() >= self.max_depth {
                 // Truncated here. This used to be silently undone: the
                 // assignment at the end of the search overwrote it
@@ -411,10 +554,25 @@ impl Explorer {
                     };
                 }
                 // Replay to this state, then take one more step.
-                let mut component = factory();
-                for replayed in &path {
-                    component.handle(*replayed);
-                }
+                //
+                // EVERY reconstruction is checked, not one per path, because
+                // every reconstruction is a separate product of the factory and
+                // a separate chance for it to hand back something else. This
+                // loop builds one per outgoing key; checking only the first
+                // would leave the rest exactly as unverified as they were
+                // before, and an impure factory rarely misbehaves on call one.
+                let mut component = match Self::replay_to(&factory, &departure) {
+                    Ok(component) => component,
+                    Err(divergence) => {
+                        report.divergences.push(*divergence);
+                        // Judge NOTHING from a departure point already known to
+                        // be the wrong one. Every outgoing key from here would
+                        // be applied to a machine the search never explored,
+                        // and a violation found there would be attributed to a
+                        // path that does not reach it.
+                        break;
+                    }
+                };
                 let before = component.view();
                 let flow = component.handle(*key);
                 let after = component.view();
@@ -454,7 +612,8 @@ impl Explorer {
                     continue;
                 }
 
-                if seen.insert(component.fingerprint()) {
+                let reached = component.fingerprint();
+                if seen.insert(reached.clone()) {
                     report.states += 1;
                     if recorded.insert(after.clone()) {
                         report.views.push(after.clone());
@@ -466,7 +625,14 @@ impl Explorer {
                         &mut report,
                         &mut reported,
                     );
-                    queue.push_back(next_path);
+                    // The fingerprint recorded HERE is what a later replay of
+                    // this path is required to arrive at. It is taken at
+                    // discovery, from the instance that actually reached the
+                    // state, which is the only moment it is known to be right.
+                    queue.push_back(Departure {
+                        path: next_path,
+                        expected: reached,
+                    });
                 }
             }
         }
@@ -475,6 +641,79 @@ impl Explorer {
         // truncation recorded above survives to the report.
         report.exhausted &= queue.is_empty() && report.states < self.max_states;
         report
+    }
+
+    /// The initial state: judged, recorded, and turned into the first
+    /// departure the queue will replay to.
+    ///
+    /// Its fingerprint is taken HERE, from the instance that actually started,
+    /// and travels with the empty path — so even the first reconstruction has
+    /// something to be compared against.
+    fn seed<C: Component>(
+        factory: &impl Fn() -> C,
+        properties: &[&dyn Property],
+        report: &mut Report,
+        reported: &mut HashSet<usize>,
+        seen: &mut HashSet<Fingerprint>,
+        recorded: &mut HashSet<View>,
+    ) -> Departure {
+        let start = factory();
+        let view = start.view();
+        let expected = start.fingerprint();
+        seen.insert(expected.clone());
+        recorded.insert(view.clone());
+        report.views.push(view.clone());
+        report.states = 1;
+        Self::check(
+            properties,
+            &Observation::State { view: &view },
+            &[],
+            report,
+            reported,
+        );
+        Departure {
+            path: Vec::new(),
+            expected,
+        }
+    }
+
+    /// Rebuild the component at `departure` and check the replay landed there.
+    ///
+    /// The soundness of the whole search rests on this: a state is reached by
+    /// replaying its key path into a FRESH product of the factory, so every
+    /// judgement made from it is about whatever that replay produced. For most
+    /// of this crate's life nothing compared the two, and an impure factory
+    /// could hand the walk a different machine at any point without a word.
+    fn replay_to<C: Component>(
+        factory: &impl Fn() -> C,
+        departure: &Departure,
+    ) -> Result<C, Box<Divergence>> {
+        let mut component = factory();
+        let mut departed = None;
+        for (at, replayed) in departure.path.iter().enumerate() {
+            // The replay's flows are OBSERVED, not discarded. This state was
+            // discovered as one that takes another key; a close partway through
+            // means the machine being replayed is not the machine that was
+            // walked, and every subsequent `handle` would be delivered to a
+            // closed component.
+            if matches!(component.handle(*replayed), Flow::Close(_)) {
+                departed = Some(DivergenceReason::ClosedDuringReplay { at });
+                break;
+            }
+        }
+        let arrived = component.fingerprint();
+        if departed.is_none() && arrived != departure.expected {
+            departed = Some(DivergenceReason::DifferentState);
+        }
+        match departed {
+            Some(reason) => Err(Box::new(Divergence {
+                path: departure.path.clone(),
+                expected: departure.expected.clone(),
+                actual: arrived,
+                reason,
+            })),
+            None => Ok(component),
+        }
     }
 
     fn check(
