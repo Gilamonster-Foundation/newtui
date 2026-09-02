@@ -217,6 +217,48 @@ const MUTATIONS: &[Mutation] = &[
         expect_red: "the_shipped_closure_is_empty",
         cargo_args: &[],
     },
+    Mutation {
+        defect: "the replay comparison is GONE — a reconstruction that lands \
+                 in a different state than discovery recorded is accepted, \
+                 and the walk judges a machine it never explored",
+        file: "src/explore.rs",
+        from: "        if departed.is_none() && arrived != departure.expected {",
+        to: "        if departed.is_none() && false {",
+        expect_red: "tests::a_replay_that_lands_elsewhere_is_not_a_clean_bill",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "the replay's FLOWS are discarded again — a component that \
+                 closes partway through a replay is not noticed, and every \
+                 remaining key is delivered to a closed component",
+        file: "src/explore.rs",
+        from: "            if matches!(component.handle(*replayed), Flow::Close(_)) {
+                departed = Some(DivergenceReason::ClosedDuringReplay { at });
+                break;
+            }",
+        to: "            let _ = at;
+            component.handle(*replayed);",
+        expect_red: "tests::a_replay_that_closes_early_is_caught_as_such",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "a diverged departure is RECORDED and then judged anyway — \
+                 the outgoing keys are applied to the wrong machine, and any \
+                 violation is attributed to a path that does not reach it",
+        file: "src/explore.rs",
+        from: "                        break;
+                    }
+                };",
+        to: "                        let mut carried = factory();
+                        for replayed in &departure.path {
+                            carried.handle(*replayed);
+                        }
+                        carried
+                    }
+                };",
+        expect_red: "tests::a_diverged_departure_judges_nothing",
+        cargo_args: &[],
+    },
 ];
 
 #[test]
