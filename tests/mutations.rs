@@ -106,6 +106,15 @@ const MUTATIONS: &[Mutation] = &[
         expect_red: "TheReadmeIsCompiledAndRun",
         cargo_args: &["--doc"],
     },
+    Mutation {
+        defect: "property retirement keyed on the NAME STRING, so two claims \
+                 sharing a name silence each other (R5)",
+        file: "src/explore.rs",
+        from: "if reported.contains(&index) {",
+        to: "if reported.iter().any(|i| properties[*i].name() == property.name()) {",
+        expect_red: "tests::two_properties_with_one_name_are_both_checked",
+        cargo_args: &[],
+    },
 ];
 
 #[test]
@@ -187,7 +196,7 @@ fn every_guard_has_a_defect_it_provably_catches() {
     }
 
     assert!(
-        checked >= 6,
+        checked >= 7,
         "only {checked} mutations ran. This table may only GROW: a guard \
          removed from it is a guard nobody has seen fail."
     );
