@@ -122,8 +122,13 @@ conformance artifact was the strict subset.
 An acceptance property is a named check over a state or a transition. The
 library ships the ones every component of this shape needs — the selection
 stays in range, a non-adjustable row never moves under an arrow, Esc always
-leaves without applying, a repeated key clamps rather than wraps. Your
-component adds its own by writing a closure, not a test file.
+leaves without applying. Your component adds its own by writing a closure, not
+a test file.
+
+Every one of them has an observation it REFUSES, and a test in `property.rs`
+pins the count to the module, so a property cannot be added without one. A
+property that cannot fail is the exact thing this crate exists to refuse — and
+the set shipped with one, sold in this paragraph, whose body was `|_| Ok(())`.
 
 That is what makes the corpus portable. A property is a claim about
 *observable behaviour*, so it outlives the implementation that first satisfied

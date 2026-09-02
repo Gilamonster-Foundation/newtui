@@ -211,19 +211,25 @@ pub mod properties {
         })
     }
 
-    /// **A repeated key reaches a fixed point rather than cycling.**
-    ///
-    /// Checked by the explorer's structure rather than one observation: if
-    /// holding → forever walks a cycle, the state graph has a loop the search
-    /// will find and this property will flag when it revisits. Wrapping is a
-    /// legitimate design — a component that WANTS a wrap simply does not
-    /// include this property — but a component that clamps everywhere else and
-    /// wraps in one place is a surprise.
-    #[must_use]
-    pub fn a_repeated_key_reaches_a_fixed_point(
-    ) -> Named<impl Fn(&Observation<'_>) -> Result<(), String>> {
-        Named::new("a repeated key reaches a fixed point", |_| Ok(()))
-    }
+    // DELETED: `a_repeated_key_reaches_a_fixed_point`. Its body was
+    // `|_| Ok(())` — a property that cannot fail, which is the exact thing
+    // this crate exists to refuse — while its doc claimed the explorer flagged
+    // a revisit and the README sold it in the shipped set. Nothing in
+    // `explore.rs` detected cycles or referenced the name: a WRAPPING dial,
+    // the property's own subject, explored with only that property, came back
+    // "4 states, 4 transitions, no violations, is_clean() == true".
+    //
+    // Deleted rather than implemented, because it is not the same shape as
+    // anything else here. Every other property judges one observation and can
+    // say so at the state that broke it; cycle-freedom is a claim about the
+    // GRAPH, computable in `Report` from edges the walk already has, and it
+    // would have to arrive as a report-level check with its own counterexample
+    // vocabulary. Wrapping is also a legitimate design, so it is a claim a
+    // component opts into rather than one the harness asserts. Worth having;
+    // not worth pretending to have.
+    //
+    // `every_shipped_property_rejects_something` below is what stops the shape
+    // coming back.
 }
 
 #[cfg(test)]
@@ -322,6 +328,85 @@ mod tests {
                 flow: Flow::Stay,
             })
             .is_ok());
+    }
+
+    /// **Every shipped property has an observation it REFUSES**, and the count
+    /// is pinned to the module so a new one cannot arrive without a witness.
+    ///
+    /// The defect this replaces: `a_repeated_key_reaches_a_fixed_point` shipped
+    /// with the body `|_| Ok(())`, advertised in the README, documenting cycle
+    /// detection that existed nowhere. A property that cannot fail is the exact
+    /// thing this crate exists to refuse, and it is invisible to every other
+    /// test in the file — each of those checks the properties it names, and
+    /// this one checks that the file names no others.
+    ///
+    /// The source scan asserts it READ something before it counts, because an
+    /// absence check fails OPEN: anything that shrinks the scanned text makes
+    /// it likelier to pass.
+    #[test]
+    fn every_shipped_property_rejects_something() {
+        let none_selected = view(vec![Row::new("a", "1")]);
+        let cursor = view(vec![Row::new("a", "1").selected()]);
+        let moved = view(vec![Row::new("a", "2").selected()]);
+        let swallowed = |key| Observation::Transition {
+            from: &cursor,
+            key,
+            to: &cursor,
+            flow: Flow::Stay,
+        };
+
+        // Each shipped property, against an observation that MUST break it.
+        let refusals = [
+            (
+                "selection is always in range",
+                selection_is_always_in_range().check(&Observation::State {
+                    view: &none_selected,
+                }),
+            ),
+            (
+                "escape always closes without applying",
+                escape_always_closes_without_applying().check(&swallowed(Key::Esc)),
+            ),
+            (
+                "escape always leaves something",
+                escape_always_leaves_something().check(&swallowed(Key::Esc)),
+            ),
+            (
+                "only adjustable rows move",
+                only_adjustable_rows_move().check(&Observation::Transition {
+                    from: &cursor,
+                    key: Key::Right,
+                    to: &moved,
+                    flow: Flow::Stay,
+                }),
+            ),
+        ];
+        for (name, outcome) in &refusals {
+            assert!(
+                outcome.is_err(),
+                "`{name}` accepted the observation that must break it — a \
+                 property that cannot fail is decoration in the acceptance set \
+                 of every component that includes it"
+            );
+        }
+
+        let module = include_str!("property.rs")
+            .split_once("pub mod properties {")
+            .expect("this file declares the shipped properties")
+            .1;
+        assert!(
+            module.contains("selection_is_always_in_range"),
+            "the scan read nothing recognisable, so its count means nothing"
+        );
+        let shipped = module.matches("\n    pub fn ").count();
+        assert_eq!(
+            shipped,
+            refusals.len(),
+            "`properties` ships {shipped} properties and this test witnesses \
+             {}. Adding a property here means adding the observation it \
+             refuses — otherwise nobody has ever seen it fail.",
+            refusals.len()
+        );
     }
 
     /// The weaker escape claim admits a two-stage exit, and still refuses a

@@ -107,6 +107,14 @@ const MUTATIONS: &[Mutation] = &[
         cargo_args: &["--doc"],
     },
     Mutation {
+        defect: "a shipped property whose body cannot fail — P7's                  `Named::new(name, |_| Ok(()))`, back in the set",
+        file: "src/property.rs",
+        from: "    /// **At most one row is selected, and a non-empty component selects one.**",
+        to: "    #[must_use]\n    pub fn a_no_op() -> Named<impl Fn(&Observation<'_>) -> Result<(), String>> {\n        Named::new(\"a no-op\", |_| Ok(()))\n    }\n\n    /// **At most one row is selected, and a non-empty component selects one.**",
+        expect_red: "property::tests::every_shipped_property_rejects_something",
+        cargo_args: &[],
+    },
+    Mutation {
         defect: "property retirement keyed on the NAME STRING, so two claims \
                  sharing a name silence each other (R5)",
         file: "src/explore.rs",
@@ -196,7 +204,7 @@ fn every_guard_has_a_defect_it_provably_catches() {
     }
 
     assert!(
-        checked >= 7,
+        checked >= 8,
         "only {checked} mutations ran. This table may only GROW: a guard \
          removed from it is a guard nobody has seen fail."
     );
