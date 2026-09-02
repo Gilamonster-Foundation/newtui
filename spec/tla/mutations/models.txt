@@ -1,0 +1,22 @@
+# MUTATION MANIFEST — the same rule as ../models.txt, for the expected-red set.
+#
+# These configurations are DELIBERATELY RED (or, for a negative control, green
+# for a stated reason). They are outside default discovery because check.sh
+# dies on the first TLC failure; scripts/check-mutations.sh runs them one at a
+# time with the verdict inverted, reading THIS file rather than globbing
+# `*.cfg`.
+#
+# The glob had the identical silent-skip hole: a mutation `.tla` whose `.cfg`
+# was never written vanished from the run, and the FLOOR count — computed from
+# the same glob — could not see the difference. Fixing one directory and
+# leaving its sibling with the same hole, in a pull request about false
+# completeness, is not a fix.
+#
+# Imported modules (ExplorerReplay, RustObs) are symlinks under lib/, excluded
+# by location, exactly as in the parent directory.
+
+DecoyOverlap
+HonestRunExists
+NarrowOff
+PrewarmedResidue
+ReplayGuardOff

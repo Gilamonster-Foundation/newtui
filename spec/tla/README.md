@@ -6,16 +6,30 @@ it are checked green; five more are checked for the verdict they are supposed
 to produce, four RED and one GREEN.
 
 ```sh
-spec/tla/check.sh                # TLC-check every <Name>.tla + <Name>.cfg pair here
+spec/tla/check.sh                # TLC-check every root model named in models.txt
 spec/tla/check.sh ExplorerReplay # just one; prints `tla-checked-count=N`
 spec/tla/test-check.sh           # fail-closed regression tests for the runner
 scripts/check-mutations.sh       # the EXPECTED-RED runner (mutations/)
-scripts/check-model.sh           # the bridge: regenerate RustObs.tla and diff
+scripts/check-model.sh           # the bridge: regenerate lib/RustObs.tla and diff
 ```
 
-`check.sh` and `test-check.sh` are copied from `newt-agent/spec/tla/`;
+### Layout
+
+| | |
+|---|---|
+| `models.txt` | the **root-model manifest** — the list `check.sh` checks, and the only list |
+| `*.tla` + `*.cfg` | root models; each must be named in `models.txt` |
+| `lib/*.tla` | imported support modules, never checked alone (`RustObs.tla`) |
+| `mutations/` | the expected-red set, with its own `models.txt` and `lib/` |
+
+Support modules are separated **by location**, not by guessing from the absence
+of a `.cfg`, because "every `.tla` needs a `.cfg`" is false for an import. See
+point 3 below for what the manifest replaced and why.
+
+`check.sh` and `test-check.sh` began as copies of `newt-agent/spec/tla/`;
 `check-lean-proofs.sh` from `precedence-ladder/scripts/`. Deliberately copied,
-not reinvented.
+not reinvented — and `check.sh` has since **forked** over discovery, which its
+header records.
 
 ## Why this module exists — one reason
 
@@ -162,17 +176,42 @@ TLC red on `ModelMatchesRust`.
 
 Said out loud rather than discovered later.
 
-1. **`lake build` exits 0 on an unproven theorem.** Gated by
-   `scripts/check-lean-proofs.sh`; the transcript is in `formal/README.md`.
+1. **`lake build` exits 0 on an unproven theorem, on a declared assumption, and
+   on a theorem nobody audits.** Gated by `scripts/check-lean-proofs.sh`, and
+   the gate itself is mutation-verified by `scripts/check-lean-mutations.sh`.
+   See `formal/README.md` for the four mutations and which gate each trips.
 2. **A `[[lean_lib]]` missing from `defaultTargets` compiles nothing**, and CI
    goes green having built an empty tree. `formal/lakefile.toml` says so at the
    top and names line 2.
-3. **A `.tla` with no matching `.cfg` is silently skipped by discovery** — add
+3. **A `.tla` with no matching `.cfg` was silently skipped by discovery** — add
    a model, forget its `.cfg`, and CI stays green having never checked it.
-   Recorded as a passing test in `test-check.sh` (cases 8 and 9) rather than
-   fixed, because `check.sh` is copied verbatim from `newt-agent` and forking it
-   is the more expensive mistake. The count it prints is the only thing that
-   can betray the skip.
+   **FIXED, having first been recorded and shipped as a passing test.** That is
+   worth stating plainly: `test-check.sh` case 9 *asserted the skip*, and a
+   proof gate that green-lights its own silent skip is the worst instance of
+   the class this directory exists to pin. Recording a defect is not fixing it.
+
+   The naive repair — "every `.tla` needs a `.cfg`" — is wrong, because an
+   imported support module legitimately has none (`RustObs.tla` is one). So
+   discovery is now a **root-model manifest**, `models.txt`, validated in four
+   directions, with support modules separated **by location** into `lib/`:
+
+   | | |
+   |---|---|
+   | 1 | every manifest entry has both `Name.tla` and `Name.cfg` |
+   | 2 | every root `.cfg` is named in the manifest |
+   | 3 | every root `.tla` is named in the manifest |
+   | 4 | **the number of specs checked equals the number requested** |
+
+   (1)–(3) police the inputs; (4) polices the outcome, and it is the only one
+   that survives a discovery bug reintroduced below the manifest. `test-check.sh`
+   carries a mutation for each — including a *dropped-from-the-manifest* model,
+   and a seeded `continue` in `check.sh`'s own check loop that (4) catches. This
+   forked `check.sh` from `newt-agent`'s copy, which still globs; the divergence
+   is recorded in the script header.
+
+   `scripts/check-mutations.sh` had the identical hole (a glob, and a `FLOOR`
+   computed from that same glob, so it could not see the difference) and reads
+   `mutations/models.txt` for the same reason.
 4. **`check.sh` aborts on the first red**, so a red spec hides every spec after
    it. Worked around by `mutations/` living outside discovery and being run one
    at a time.

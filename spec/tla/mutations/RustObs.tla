@@ -1,1 +1,0 @@
-../RustObs.tla

@@ -1,7 +1,7 @@
-//! Generates `spec/tla/RustObs.tla` — the ONLY tie between the TLA+ model and
+//! Generates `spec/tla/lib/RustObs.tla` — the ONLY tie between the TLA+ model and
 //! this crate's code.
 //!
-//! Run: `cargo run --example gen_model > spec/tla/RustObs.tla`
+//! Run: `cargo run --example gen_model > spec/tla/lib/RustObs.tla`
 //! Checked by: `scripts/check-model.sh` (regenerate into a tempdir and diff).
 //!
 //! # What this is, and what it is not
