@@ -1,0 +1,39 @@
+# ROOT-MODEL MANIFEST — the list check.sh model-checks, and the only list.
+#
+# One name per line; `#` comments and blank lines ignored. A name here means
+# "<Name>.tla + <Name>.cfg, model-checked on every run".
+#
+# WHY THIS FILE EXISTS. Discovery used to be `for cfg in *.cfg`. A `.tla` whose
+# `.cfg` was never written was dropped from that glob WITHOUT A WORD and the run
+# exited green on a count that did not include it — add a model, forget its
+# `.cfg`, and CI passes having never checked it. That is a member of the very
+# class this directory exists to pin, living in the tooling used to pin it.
+#
+# The naive repair — "every .tla needs a .cfg" — is wrong: an IMPORTED support
+# module legitimately has none. So the two populations are separated BY
+# LOCATION, not by guessing from an absence:
+#
+#   spec/tla/*.tla        root models   — must be listed here, must have a .cfg
+#   spec/tla/lib/*.tla    support only  — imported, never checked alone
+#
+# check.sh validates this file in four directions and refuses to run if any
+# fails:
+#
+#   1. every name here has both <Name>.tla and <Name>.cfg;
+#   2. every <Name>.cfg in this directory is named here;
+#   3. every <Name>.tla in this directory is named here;
+#   4. the number of specifications actually checked equals the number
+#      requested — the assertion that turns an accidental omission from a
+#      silent green into a failure.
+#
+# (1)-(3) close the gap going in; (4) closes it going out. Each has an
+# expected-red row in test-check.sh; a validation with no test that turns it red
+# is decoration.
+#
+# RustObs.tla is the module that made this concrete: generated, imported by
+# ExplorerReplay, and never checked on its own. It lives in lib/.
+
+ExplorerReplay
+DepartureGuardCloses
+NarrowingHolds
+PrewarmedConsistent

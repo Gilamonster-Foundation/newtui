@@ -1,18 +1,33 @@
 #!/usr/bin/env bash
 # Reproducible, FAIL-CLOSED TLC runner for the behavioral constitution (#1529).
 #
-# Resolves a PINNED, checksum-verified tla2tools.jar, then model-checks each
-# requested `<Name>.tla` (which must have a matching `<Name>.cfg`). Invariants
-# (deliberately fail-closed — a green exit must mean specs were actually checked):
-#   * an explicitly-requested spec with no .tla or no .cfg is an ERROR;
-#   * default discovery finding zero complete <Name>.{tla,cfg} pairs is an ERROR;
+# Resolves a PINNED, checksum-verified tla2tools.jar, then model-checks the root
+# models named in `models.txt`. Invariants (deliberately fail-closed — a green
+# exit must mean specs were actually checked):
+#   * `models.txt` is REQUIRED and must name at least one model;
+#   * every manifest entry must have BOTH <Name>.tla and <Name>.cfg;
+#   * every root <Name>.cfg must be named in the manifest;
+#   * every root <Name>.tla must be named in the manifest;
+#   * an explicitly-requested spec must be named in the manifest;
+#   * the number of specs CHECKED must equal the number requested;
 #   * a TLC failure is an ERROR; a skipped spec never yields success;
-#   * at least one spec must be checked before exit 0; the count is printed;
 #   * unsafe spec names (path separators / traversal) are rejected;
 #   * the jar checksum is enforced for EVERY source (env / local / cache /
 #     download); a locally-supplied jar of another version is refused, not run.
 #
-# Usage:  spec/tla/check.sh [Spec ...]     # default: every complete pair in dir
+# THE MANIFEST REPLACED A `*.cfg` GLOB, and that is not a style change. Under the
+# glob, a `.tla` whose `.cfg` was never written was skipped SILENTLY and the run
+# went green on a count that did not include it — the false-completeness class
+# this spec directory exists to pin, in the tooling used to pin it. The naive
+# repair ("every .tla needs a .cfg") is wrong, because an imported support module
+# legitimately has none; so support modules live in `lib/` and are excluded BY
+# LOCATION. See models.txt for the full statement and test-check.sh for the
+# expected-red row behind each of the four validations.
+#
+# This runner has therefore FORKED from newt-agent's copy, which still globs.
+# The divergence is deliberate and this paragraph is the record of it.
+#
+# Usage:  spec/tla/check.sh [Spec ...]     # default: every model in models.txt
 # Env:    TLA2TOOLS_JAR  — explicit jar (still checksum-enforced)
 #         TLA_SPEC_DIR   — spec directory (default: this script's dir; for tests)
 set -euo pipefail
@@ -83,25 +98,62 @@ resolve_jar() {
   download_jar
 }
 
+# ── The root-model manifest, validated in four directions (fail-closed) ─────
+readonly manifest="$spec_dir/models.txt"
+[ -f "$manifest" ] || die "no root-model manifest at $manifest (see spec/tla/models.txt)"
+
+safe_name() {
+  case "$1" in
+    "" | */* | *\\* | .. | *..*) die "invalid spec name: '$1' (no path separators or traversal)" ;;
+  esac
+}
+
+listed() {
+  local want="$1" n
+  for n in "${models[@]}"; do [ "$n" = "$want" ] && return 0; done
+  return 1
+}
+
+models=()
+while IFS= read -r line; do
+  line="${line%%#*}"                       # strip comments
+  line="${line#"${line%%[![:space:]]*}"}"  # ltrim
+  line="${line%"${line##*[![:space:]]}"}"  # rtrim
+  [ -n "$line" ] || continue
+  safe_name "$line"
+  listed "$line" && die "models.txt lists '$line' twice"
+  models+=("$line")
+done < "$manifest"
+
+[ "${#models[@]}" -gt 0 ] || die "models.txt names no models — nothing would be checked"
+
+# (1) every manifest entry is a complete pair.
+for name in "${models[@]}"; do
+  [ -f "$spec_dir/$name.tla" ] || die "models.txt lists '$name' but $spec_dir/$name.tla does not exist"
+  [ -f "$spec_dir/$name.cfg" ] || die "models.txt lists '$name' but $spec_dir/$name.cfg does not exist"
+done
+
+# (2) and (3): every root .cfg and every root .tla is listed. NOT recursive —
+# lib/ holds the imported support modules and is excluded by LOCATION, which is
+# the whole reason a manifest beats an "every .tla needs a .cfg" rule.
+shopt -s nullglob
+for f in "$spec_dir"/*.cfg "$spec_dir"/*.tla; do
+  name="$(basename "$f")"; name="${name%.*}"
+  listed "$name" || die \
+    "$(basename "$f") is not named in models.txt. A root model must be listed; an imported support module belongs in $spec_dir/lib/."
+done
+shopt -u nullglob
+
 # ── Collect specs (fail-closed) ─────────────────────────────────────────────
 specs=()
 if [ "$#" -gt 0 ]; then
   for s in "$@"; do
-    case "$s" in
-      "" | */* | *\\* | .. | *..*) die "invalid spec name: '$s' (no path separators or traversal)" ;;
-    esac
-    [ -f "$spec_dir/$s.tla" ] || die "requested spec '$s' has no $spec_dir/$s.tla"
-    [ -f "$spec_dir/$s.cfg" ] || die "requested spec '$s' has no $spec_dir/$s.cfg"
+    safe_name "$s"
+    listed "$s" || die "requested spec '$s' is not named in models.txt"
     specs+=("$s")
   done
 else
-  shopt -s nullglob
-  for cfg in "$spec_dir"/*.cfg; do
-    name="$(basename "${cfg%.cfg}")"
-    [ -f "$spec_dir/$name.tla" ] && specs+=("$name")
-  done
-  [ "${#specs[@]}" -gt 0 ] \
-    || die "no complete <Name>.tla + <Name>.cfg pair found in $spec_dir"
+  specs=("${models[@]}")
 fi
 
 jar="$(resolve_jar)"
@@ -109,15 +161,28 @@ jar="$(resolve_jar)"
 log "using tla2tools ${TLA2TOOLS_VERSION}: $jar"
 
 # ── Check each spec; a failure or a skip must NOT produce overall success ───
+# `lib/` is on TLC's module search path so an imported support module resolves
+# from the place that excludes it from discovery.
+tla_lib=()
+[ -d "$spec_dir/lib" ] && tla_lib=(-DTLA-Library=lib)
+
 checked=0
 for spec in "${specs[@]}"; do
   log "TLC checking ${spec}.tla …"
   # -XX:+UseParallelGC is TLC's recommended GC; run inside the spec dir.
-  ( cd "$spec_dir" && java -XX:+UseParallelGC -cp "$jar" tlc2.TLC \
-      -config "${spec}.cfg" "${spec}.tla" ) || die "TLC FAILED on ${spec}" 1
+  # ${a[@]+"${a[@]}"} — an empty array under `set -u` is an error before bash 4.4.
+  ( cd "$spec_dir" && java -XX:+UseParallelGC ${tla_lib[@]+"${tla_lib[@]}"} \
+      -cp "$jar" tlc2.TLC -config "${spec}.cfg" "${spec}.tla" ) \
+    || die "TLC FAILED on ${spec}" 1
   checked=$((checked + 1))
 done
 
+# (4) THE ASSERTION THAT CONVERTS AN OMISSION FROM A SILENT GREEN INTO A
+# FAILURE. Everything above validates the inputs; this validates the outcome.
+# It is the one check that would still catch a discovery bug reintroduced
+# below the manifest — including a `continue` slipped into the loop above.
+[ "$checked" -eq "${#specs[@]}" ] \
+  || die "checked $checked specification(s) but $((${#specs[@]})) were requested — a spec was skipped"
 [ "$checked" -gt 0 ] || die "no specifications were checked"
 log "OK — ${checked} specification(s) checked with tla2tools ${TLA2TOOLS_VERSION} (TLC)."
 printf 'tla-checked-count=%d\n' "$checked"

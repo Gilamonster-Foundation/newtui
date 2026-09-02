@@ -4,7 +4,7 @@
 # A hand-written TLA+ module is a model of `explore.rs` that NOTHING forces to
 # agree with it. `examples/gen_model.rs` runs the real `Explorer::explore` over
 # a Rust component implementing exactly the model's transition function, and
-# emits its four report counters as `spec/tla/RustObs.tla`. The model computes
+# emits its four report counters as `spec/tla/lib/RustObs.tla`. The model computes
 # those same four numbers from its own transitions; `ModelMatchesRust` compares.
 #
 # TWO GATES, and both are needed:
@@ -36,7 +36,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-readonly target="$root/spec/tla/RustObs.tla"
+readonly target="$root/spec/tla/lib/RustObs.tla"
 
 # POSITIVE READ ASSERTION. A generator that produced nothing — a build that
 # silently emitted an empty file, a redirect into the wrong path — would make
@@ -68,7 +68,7 @@ fi
 
 if ! diff -u "$target" "$fresh"; then
   echo >&2
-  echo "check-model: spec/tla/RustObs.tla has DRIFTED from the crate." >&2
+  echo "check-model: spec/tla/lib/RustObs.tla has DRIFTED from the crate." >&2
   echo "The explorer's observable report changed. Regenerate with" >&2
   echo "  scripts/check-model.sh --write" >&2
   echo "and then EXPECT TLC to go red on ModelMatchesRust until the model in" >&2
