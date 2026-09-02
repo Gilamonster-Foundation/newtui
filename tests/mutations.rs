@@ -123,6 +123,25 @@ const MUTATIONS: &[Mutation] = &[
         expect_red: "tests::two_properties_with_one_name_are_both_checked",
         cargo_args: &[],
     },
+    Mutation {
+        defect: "a DEFAULT feature drags a dependency into every consumer — \
+                 one string moved, and `newtui = \"0.1\"` resolves 50-odd \
+                 crates including a terminal backend",
+        file: "Cargo.toml",
+        from: "default = []",
+        to: "default = [\"ratatui\"]",
+        expect_red: "the_shipped_closure_is_empty",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "a BUILD dependency, which runs with the building user's full \
+                 authority before a line of this crate compiles",
+        file: "Cargo.toml",
+        from: "[dev-dependencies]",
+        to: "[build-dependencies]\nserde_json = \"1\"\n\n[dev-dependencies]",
+        expect_red: "the_shipped_closure_is_empty",
+        cargo_args: &[],
+    },
 ];
 
 #[test]
@@ -204,7 +223,7 @@ fn every_guard_has_a_defect_it_provably_catches() {
     }
 
     assert!(
-        checked >= 8,
+        checked >= 10,
         "only {checked} mutations ran. This table may only GROW: a guard \
          removed from it is a guard nobody has seen fail."
     );
