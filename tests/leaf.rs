@@ -70,6 +70,7 @@ fn closure(args: &[&str]) -> BTreeSet<String> {
 /// what `newtui = "0.1"` means in someone else's manifest, and it is the
 /// higher-blast-radius half: moving one string into `default` ships a whole
 /// terminal stack to everyone without adding a dependency anywhere.
+// GUARD: the_shipped_closure_is_empty — this is a guard; tests/mutations.rs must show it red.
 #[test]
 fn the_shipped_closure_is_empty() {
     for (setting, args) in [

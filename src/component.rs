@@ -242,6 +242,7 @@ mod tests {
     /// rarer separators relocates the bug rather than fixing it. These pairs
     /// collide under the old encoding, under the legible rendering that
     /// replaced it, and under any other join a future refactor might reach for.
+    // GUARD: component::tests::no_two_distinct_states_can_share_a_fingerprint — this is a guard; tests/mutations.rs must show it red.
     #[test]
     fn no_two_distinct_states_can_share_a_fingerprint() {
         let pairs = [
