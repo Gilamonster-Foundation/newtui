@@ -59,6 +59,7 @@ pub use view::{Row, View};
 ///
 /// `cfg(doctest)` rather than `#![doc = include_str!(..)]`: the crate's own
 /// front-page docs are the module comment above, not the README.
+// GUARD: TheReadmeIsCompiledAndRun — this is a guard; tests/mutations.rs must show it red.
 #[cfg(doctest)]
 #[doc = include_str!("../README.md")]
 struct TheReadmeIsCompiledAndRun;
@@ -225,6 +226,7 @@ mod tests {
 
     /// A capped search says so, and `is_clean` refuses to call it a proof.
     /// "No violations in the part I looked at" is not "no violations".
+    // GUARD: tests::a_capped_search_is_a_sample_and_admits_it — this is a guard; tests/mutations.rs must show it red.
     #[test]
     fn a_capped_search_is_a_sample_and_admits_it() {
         struct Endless {
@@ -273,6 +275,7 @@ mod tests {
     ///
     /// The `max_states` arm was already covered. This is the other one, which
     /// is the lesson: two limits, and the test only knew about one.
+    // GUARD: tests::a_depth_capped_search_is_a_sample_and_admits_it — this is a guard; tests/mutations.rs must show it red.
     #[test]
     fn a_depth_capped_search_is_a_sample_and_admits_it() {
         struct LongDial {
@@ -329,6 +332,7 @@ mod tests {
     /// each pair below collides under some flattening of the structure into one
     /// string, and the empty one collides under all of them. A structural
     /// identity has no flattening to collide in.
+    // GUARD: tests::a_state_the_fingerprint_merges_is_a_state_the_walk_drops — this is a guard; tests/mutations.rs must show it red.
     #[test]
     fn a_state_the_fingerprint_merges_is_a_state_the_walk_drops() {
         struct Sneaky {
@@ -379,6 +383,7 @@ mod tests {
     /// to return true, and a report carried no count that could tell you. The
     /// degenerate case of the crate's own discipline — a search reports what it
     /// looked at, and "nothing" is a thing to report.
+    // GUARD: tests::a_run_that_checked_nothing_is_not_a_clean_bill — this is a guard; tests/mutations.rs must show it red.
     #[test]
     fn a_run_that_checked_nothing_is_not_a_clean_bill() {
         let report = Explorer::new(Key::navigation()).explore(dial, &[]);
@@ -395,6 +400,7 @@ mod tests {
     /// half. No key was ever applied, so every property held over exactly one
     /// state: the start. `Explorer::new`'s own doc encourages trimming the
     /// alphabet, and the empty trim is a proof about nothing.
+    // GUARD: tests::a_walk_over_an_empty_alphabet_is_not_a_clean_bill — this is a guard; tests/mutations.rs must show it red.
     #[test]
     fn a_walk_over_an_empty_alphabet_is_not_a_clean_bill() {
         let owned = acceptance();
@@ -436,6 +442,7 @@ mod tests {
     /// property that HELD from one that was never asked anything it knows
     /// about. `Property` returning `Result<(), String>` could not either, which
     /// is why the seam grew a third answer.
+    // GUARD: tests::a_property_the_alphabet_never_reaches_is_not_a_clean_bill — this is a guard; tests/mutations.rs must show it red.
     #[test]
     fn a_property_the_alphabet_never_reaches_is_not_a_clean_bill() {
         let escapes = properties::escape_always_closes_without_applying();
@@ -485,6 +492,7 @@ mod tests {
     /// `exhausted: true`. `Named::new` takes a free-form `impl Into<String>`
     /// with no uniqueness check anywhere, and an acceptance set composed from
     /// two modules is this crate's whole distribution story.
+    // GUARD: tests::two_properties_with_one_name_are_both_checked — this is a guard; tests/mutations.rs must show it red.
     #[test]
     fn two_properties_with_one_name_are_both_checked() {
         let first = Named::new("invariant", |_: &Observation<'_>| {
@@ -517,6 +525,7 @@ mod tests {
     /// just fixed. `Named::new` takes a free-form string with no uniqueness
     /// check, so this is reachable by composing two acceptance sets, which is
     /// the crate's distribution story.
+    // GUARD: tests::a_named_lookup_returns_every_violation_with_that_name — this is a guard; tests/mutations.rs must show it red.
     #[test]
     fn a_named_lookup_returns_every_violation_with_that_name() {
         let first = Named::new("invariant", |_: &Observation<'_>| {
@@ -582,6 +591,7 @@ mod tests {
     /// The fix was to delete the second walk. One walk, one completeness flag,
     /// and the law is satisfied by construction rather than by two functions
     /// remembering to agree.
+    // GUARD: tests::the_corpus_holds_the_states_that_closed — this is a guard; tests/mutations.rs must show it red.
     #[test]
     fn the_corpus_holds_the_states_that_closed() {
         let report = check(dial);

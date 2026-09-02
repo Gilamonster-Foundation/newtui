@@ -12,9 +12,14 @@
 //! mutation stops applying (the code moved) or the test stops failing (the
 //! guard rotted), this runner fails and says which.
 //!
-//! **Adding a guard? Add its mutation here.** That is the acceptance criterion
-//! for a new guard in this crate, not a nice-to-have: a guard with no entry is
-//! a claim nobody has ever seen fail.
+//! **Adding a guard? Mark it, and add its mutation here.** A guard declares
+//! itself with `// GUARD: <the filter cargo test takes>` above its
+//! declaration, and `every_registered_guard_is_pinned_by_a_mutation` requires
+//! the marked set and the `expect_red` set to MATCH — every registered guard
+//! has a mutation, every mutation names a registered guard, both directions
+//! failing the build. That replaced a `checked >= 10` count, which closed
+//! neither: an eleventh guard with no mutation stayed green, and so did a
+//! deleted row.
 //!
 //! Not a mutation *testing* tool. It does not generate mutants or measure a
 //! score; it pins the handful a human argued about, which is the part a
@@ -24,6 +29,7 @@
 //! to cargo, so running it inside every ordinary test run would nest builds).
 //! `just mutations` runs it, and `just check` includes that.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -48,7 +54,8 @@ struct Mutation {
     cargo_args: &'static [&'static str],
 }
 
-/// The table. One row per guard in this crate.
+/// The table. At least one row per guard in this crate — a guard may have
+/// several, when there is more than one way to break the thing it holds.
 const MUTATIONS: &[Mutation] = &[
     Mutation {
         defect: "the end-of-search assignment overwrites a depth truncation \
@@ -74,7 +81,7 @@ const MUTATIONS: &[Mutation] = &[
             base: FingerprintBase::View(view.clone()),
             extra: Vec::new(),
         })",
-        expect_red: "component::tests::no_two_distinct_states_can_share_a_fingerprint",
+        expect_red: "tests::a_state_the_fingerprint_merges_is_a_state_the_walk_drops",
         cargo_args: &[],
     },
     Mutation {
@@ -290,11 +297,155 @@ fn every_guard_has_a_defect_it_provably_catches() {
         std::fs::remove_dir_all(&mutant).expect("the mutant is removable");
     }
 
+    assert_eq!(checked, MUTATIONS.len(), "the loop did not reach every row");
+}
+
+/// **Every registered guard has a mutation, and every mutation names a
+/// registered guard.** Both directions, both failing the build.
+///
+/// What this replaces was `assert!(checked >= 10)`, and a count is exactly the
+/// shape this crate exists to refuse: a developer can add an eleventh guard
+/// with no mutation behind it and stay green, which is the claim — *every
+/// guard here has a defect it is known to catch* — passing unchanged with the
+/// thing it claims absent. The identifiers have to MATCH, not be counted.
+///
+/// A guard declares itself with `// GUARD: <the filter cargo test takes>`
+/// above its declaration, and this compares that set against the `expect_red`
+/// of every row. A guard whose mutation was deleted fails here; a mutation
+/// naming a guard that was renamed or removed fails here; and a marker whose
+/// filter has drifted from the name below it fails here too, so a rename
+/// cannot rot the registry quietly.
+///
+/// **What it does not close, plainly:** the marker is opt-in, so a new guard
+/// whose author writes no marker is still invisible. That is the residue, and
+/// it is smaller than the count's — a count closed neither direction. The
+/// module comment states the discipline; this test enforces it for everything
+/// that has ever been declared.
+///
+/// It cannot fail open. The scan feeds one side of an equality whose other
+/// side is a non-empty table, so a scan that reads nothing fails with every
+/// mutation unregistered rather than passing vacuously — and it asserts it read
+/// a non-empty file anyway.
+#[test]
+fn every_registered_guard_is_pinned_by_a_mutation() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let registered = registered_guards(&root);
+    let pinned: BTreeSet<&str> = MUTATIONS.iter().map(|m| m.expect_red).collect();
+
+    let unpinned: Vec<&str> = registered
+        .iter()
+        .filter(|guard| !pinned.contains(guard.as_str()))
+        .map(String::as_str)
+        .collect();
     assert!(
-        checked >= 10,
-        "only {checked} mutations ran. This table may only GROW: a guard \
-         removed from it is a guard nobody has seen fail."
+        unpinned.is_empty(),
+        "registered as guards, with no mutation that shows them failing: \
+         {unpinned:?}. A guard nobody has seen fail is a claim about a defect \
+         that is not present, which is the shape a broken guard satisfies for \
+         free. Add the defect it catches to MUTATIONS."
     );
+
+    let unregistered: Vec<&str> = pinned
+        .iter()
+        .filter(|guard| !registered.contains(**guard))
+        .copied()
+        .collect();
+    assert!(
+        unregistered.is_empty(),
+        "named by a mutation and not registered in any source file: \
+         {unregistered:?}. Either the guard was renamed or removed — in which \
+         case the row is pinning nothing — or its `// GUARD:` marker is \
+         missing."
+    );
+}
+
+/// Every `// GUARD:` marker in the crate's own sources.
+///
+/// The marker names the guard as `cargo test` takes it, and must sit directly
+/// above the declaration it names — checked, so that renaming the test without
+/// the marker fails here instead of silently deregistering the guard.
+///
+/// `tests/mutations.rs` is skipped: its `expect_red` strings are the other side
+/// of the comparison, and a scan that read them would agree with itself.
+fn registered_guards(root: &Path) -> BTreeSet<String> {
+    const MARKER: &str = "// GUARD: ";
+    let mut registered = BTreeSet::new();
+    let mut files = 0;
+
+    for dir in ["src", "tests"] {
+        for entry in std::fs::read_dir(root.join(dir)).expect("a source directory is readable") {
+            let path = entry.expect("a source entry").path();
+            if path.extension().and_then(std::ffi::OsStr::to_str) != Some("rs")
+                || path.file_name().and_then(std::ffi::OsStr::to_str) == Some("mutations.rs")
+            {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).expect("a source file is readable");
+            assert!(
+                !text.trim().is_empty(),
+                "{} is empty, so anything this scan concludes from it is \
+                 vacuous",
+                path.display()
+            );
+            files += 1;
+
+            let lines: Vec<&str> = text.lines().collect();
+            for (at, line) in lines.iter().enumerate() {
+                let Some((_, rest)) = line.split_once(MARKER) else {
+                    continue;
+                };
+                let filter = rest
+                    .split_whitespace()
+                    .next()
+                    .expect("a guard marker names the test it registers");
+                // The declaration it sits above, past any attributes.
+                let declared = lines[at + 1..]
+                    .iter()
+                    .take(4)
+                    .find_map(|line| declared_item(line))
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "the marker for `{filter}` in {} is not above a \
+                             declaration",
+                            path.display()
+                        )
+                    });
+                assert_eq!(
+                    filter.rsplit("::").next().expect("a non-empty filter"),
+                    declared,
+                    "the marker in {} registers `{filter}` but sits above \
+                     `{declared}` — a rename must not deregister a guard \
+                     quietly",
+                    path.display()
+                );
+                registered.insert(filter.to_string());
+            }
+        }
+    }
+
+    assert!(files > 0, "no source file was scanned");
+    assert!(
+        !registered.is_empty(),
+        "no guard is registered anywhere, so this scan means nothing"
+    );
+    registered
+}
+
+/// The name declared by a `fn` or `struct` line, if it is one.
+fn declared_item(line: &str) -> Option<&str> {
+    let line = line.trim();
+    let line = line
+        .strip_prefix("pub(crate) ")
+        .or_else(|| line.strip_prefix("pub "))
+        .unwrap_or(line);
+    let rest = line
+        .strip_prefix("fn ")
+        .or_else(|| line.strip_prefix("struct "))?;
+    Some(
+        rest.split(|c: char| !c.is_alphanumeric() && c != '_')
+            .next()
+            .unwrap_or(rest),
+    )
 }
 
 /// Copy the crate into `dest` — sources, manifest and lockfile, and nothing

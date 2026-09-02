@@ -439,6 +439,7 @@ mod tests {
     /// The source scan asserts it READ something before it counts, because an
     /// absence check fails OPEN: anything that shrinks the scanned text makes
     /// it likelier to pass.
+    // GUARD: property::tests::every_shipped_property_rejects_something — this is a guard; tests/mutations.rs must show it red.
     #[test]
     fn every_shipped_property_rejects_something() {
         let none_selected = view(vec![Row::new("a", "1")]);
