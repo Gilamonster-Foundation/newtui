@@ -96,10 +96,13 @@ pub struct Report {
     /// reimplementation as the states it must satisfy, would pass something
     /// that does less.
     pub views: Vec<View>,
-    /// True when the search stopped at a limit rather than because it ran out
-    /// of new states. A capped search is a SAMPLE, and saying so is the
-    /// difference between "nothing is wrong" and "nothing is wrong in the part
-    /// I looked at".
+    /// FALSE when the search hit a limit; true when it ran out of new states.
+    /// A capped search is a SAMPLE, and saying so is the difference between
+    /// "nothing is wrong" and "nothing is wrong in the part I looked at".
+    ///
+    /// (This doc had the polarity backwards, in the one place the crate is
+    /// supposed to be honest, and it renders into `cargo doc`. The sentence
+    /// above is `docs/PLAN.md:81`'s, which had it right.)
     pub exhausted: bool,
 }
 
