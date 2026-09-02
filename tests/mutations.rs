@@ -115,11 +115,32 @@ const MUTATIONS: &[Mutation] = &[
         cargo_args: &[],
     },
     Mutation {
-        defect: "a walk that checked no property is Clean (P6)",
+        defect: "a walk that was supplied no property is Clean (P6)",
         file: "src/explore.rs",
-        from: "if self.properties_checked == 0 {",
+        from: "if self.properties.is_empty() {",
         to: "if false {",
         expect_red: "tests::a_run_that_checked_nothing_is_not_a_clean_bill",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "a SUPPLIED property that was never once in its domain no \
+                 longer refuses the walk — the second blocking finding: \
+                 `properties_checked` meant supplied, and nonzero was treated \
+                 as evidence",
+        file: "src/explore.rs",
+        from: "if self.properties.iter().any(|p| p.applicable == 0) {",
+        to: "if false {",
+        expect_red: "tests::a_property_the_alphabet_never_reaches_is_not_a_clean_bill",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "NotApplicable is counted as applicable, which collapses the \
+                 three answers back into the two a `Result` could carry and \
+                 makes every supplied property look like it judged something",
+        file: "src/explore.rs",
+        from: "PropertyOutcome::NotApplicable => {}",
+        to: "PropertyOutcome::NotApplicable => coverage.applicable += 1,",
+        expect_red: "tests::a_property_the_alphabet_never_reaches_is_not_a_clean_bill",
         cargo_args: &[],
     },
     Mutation {
@@ -140,10 +161,12 @@ const MUTATIONS: &[Mutation] = &[
         cargo_args: &["--doc"],
     },
     Mutation {
-        defect: "a shipped property whose body cannot fail — P7's                  `Named::new(name, |_| Ok(()))`, back in the set",
+        defect: "a shipped property whose body cannot fail — P7's \
+                 `Named::new(name, |_| Ok(()))`, back in the set in the shape \
+                 the new outcome type gives it",
         file: "src/property.rs",
         from: "    /// **At most one row is selected, and a non-empty component selects one.**",
-        to: "    #[must_use]\n    pub fn a_no_op() -> Named<impl Fn(&Observation<'_>) -> Result<(), String>> {\n        Named::new(\"a no-op\", |_| Ok(()))\n    }\n\n    /// **At most one row is selected, and a non-empty component selects one.**",
+        to: "    #[must_use]\n    pub fn a_no_op() -> Named<impl Fn(&Observation<'_>) -> PropertyOutcome> {\n        Named::new(\"a no-op\", |_| PropertyOutcome::Held)\n    }\n\n    /// **At most one row is selected, and a non-empty component selects one.**",
         expect_red: "property::tests::every_shipped_property_rejects_something",
         cargo_args: &[],
     },

@@ -44,9 +44,9 @@ mod property;
 mod view;
 
 pub use component::{Component, Fingerprint, Flow};
-pub use explore::{Explorer, Report, Verdict, Violation};
+pub use explore::{Explorer, PropertyCoverage, Report, Verdict, Violation};
 pub use key::Key;
-pub use property::{properties, Named, Observation, Property};
+pub use property::{properties, Named, Observation, Property, PropertyOutcome};
 pub use view::{Row, View};
 
 /// The README's example is compiled and RUN, not read and believed.
@@ -401,6 +401,77 @@ mod tests {
         assert_eq!(report.transitions, 0, "no key exists to apply: {report}");
         assert!(report.exhausted, "and nothing capped it: {report}");
         assert!(!report.is_clean(), "which proves nothing: {report}");
+        // The REASON, not just the flag. An empty alphabet also leaves every
+        // transition property inapplicable, so two conjuncts can refuse this
+        // walk — and a test that only asked `!is_clean()` could not say which
+        // one it was pinning, and would stay green with this one deleted.
+        assert!(
+            matches!(report.verdict(), Verdict::Incomplete { reason, .. }
+                     if reason.contains("NO KEY WAS EVER APPLIED")),
+            "and says which vacuity it is: {report}"
+        );
+    }
+
+    /// **A property whose domain the alphabet never reaches is not a clean
+    /// bill** — the second blocking finding of the review of this branch.
+    ///
+    /// `Report.properties_checked` was `properties.len()`, assigned before a
+    /// single observation was examined, and `incomplete_because` treated
+    /// nonzero as sufficient. So this walk — a real component, a real alphabet,
+    /// four states, four transitions, one supplied property, no violations,
+    /// `exhausted: true` — came back `Clean` without Escape ever being applied,
+    /// against a property whose entire subject is Escape. Reproduced before the
+    /// fix:
+    ///
+    /// ```text
+    /// 4 states, 4 transitions, 0 terminal, 1 properties
+    /// no violations
+    /// exhausted=true properties_checked=1 violations=0 is_clean=true
+    /// ```
+    ///
+    /// It is the same shape as the two degenerate runs above and could not be
+    /// caught by the same mechanism, because a count cannot distinguish a
+    /// property that HELD from one that was never asked anything it knows
+    /// about. `Property` returning `Result<(), String>` could not either, which
+    /// is why the seam grew a third answer.
+    #[test]
+    fn a_property_the_alphabet_never_reaches_is_not_a_clean_bill() {
+        let escapes = properties::escape_always_closes_without_applying();
+        let report = Explorer::new([Key::Right]).explore(dial, &[&escapes]);
+
+        assert!(report.exhausted, "the walk itself finished: {report}");
+        assert!(report.transitions > 0, "and it walked somewhere: {report}");
+        assert_eq!(report.properties.len(), 1, "with a property: {report}");
+        assert!(
+            !report.is_clean(),
+            "but Escape was never applied, so the one claim it was given has \
+             said nothing: {report}"
+        );
+        assert!(
+            matches!(report.verdict(), Verdict::Incomplete { reason, .. }
+                     if reason.contains("NEVER APPLIED")),
+            "and says which vacuity it is: {report}"
+        );
+        assert_eq!(
+            report.never_applied(),
+            ["escape always closes without applying"],
+            "naming the property, because the fix is usually the alphabet: \
+             {report}"
+        );
+
+        // The coverage is what a count could not carry: consulted at every
+        // observation, in its domain at none of them.
+        let coverage = &report.properties[0];
+        assert!(coverage.observations > 0, "it WAS consulted: {report}");
+        assert_eq!(coverage.applicable, 0, "and never in its domain: {report}");
+        assert_eq!(coverage.held, 0, "so it held nothing: {report}");
+
+        // Give it the key it is about and the same walk is clean — so this is
+        // the alphabet being judged, not a report that is pessimistic about
+        // everything.
+        let full = Explorer::new([Key::Right, Key::Esc]).explore(dial, &[&escapes]);
+        assert!(full.is_clean(), "{full}");
+        assert!(full.properties[0].held > 0, "and it held: {full}");
     }
 
     /// **Two properties that share a name are both checked** — R5.
@@ -415,10 +486,10 @@ mod tests {
     #[test]
     fn two_properties_with_one_name_are_both_checked() {
         let first = Named::new("invariant", |_: &Observation<'_>| {
-            Err("the FIRST claim broke".to_string())
+            PropertyOutcome::Violated("the FIRST claim broke".to_string())
         });
         let second = Named::new("invariant", |_: &Observation<'_>| {
-            Err("the SECOND claim broke".to_string())
+            PropertyOutcome::Violated("the SECOND claim broke".to_string())
         });
         let report = Explorer::new(Key::navigation()).explore(dial, &[&first, &second]);
 
