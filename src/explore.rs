@@ -280,9 +280,13 @@ impl Explorer {
         let mut seen: HashSet<Fingerprint> = HashSet::new();
         // The shortest path to each state, so a violation can be reproduced.
         let mut queue: VecDeque<Vec<Key>> = VecDeque::new();
-        // Reported once per property: the same broken rule reached by forty
-        // paths is one defect, and forty copies of it buries the other three.
-        let mut reported: HashSet<String> = HashSet::new();
+        // Reported once per property, keyed on its POSITION in the set rather
+        // than on its name: the same broken rule reached by forty paths is one
+        // defect, but two DIFFERENT claims that happen to share a name are two,
+        // and keying on the name left the second never evaluated at any depth.
+        // `Named::new` takes a free-form string with no uniqueness check, and
+        // an acceptance set composed from two modules is the point of the crate.
+        let mut reported: HashSet<usize> = HashSet::new();
 
         // Distinct VIEWS, which is not the same set as distinct states: a
         // fingerprint may be finer than the view (folded-in hidden state), and
@@ -395,14 +399,14 @@ impl Explorer {
         observation: &Observation<'_>,
         path: &[Key],
         report: &mut Report,
-        reported: &mut HashSet<String>,
+        reported: &mut HashSet<usize>,
     ) {
-        for property in properties {
-            if reported.contains(property.name()) {
+        for (index, property) in properties.iter().enumerate() {
+            if reported.contains(&index) {
                 continue;
             }
             if let Err(detail) = property.check(observation) {
-                reported.insert(property.name().to_string());
+                reported.insert(index);
                 report.violations.push(Violation {
                     property: property.name().to_string(),
                     path: path.to_vec(),

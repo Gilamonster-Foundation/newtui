@@ -344,6 +344,37 @@ mod tests {
         assert!(!report.is_clean(), "which proves nothing: {report}");
     }
 
+    /// **Two properties that share a name are both checked** — R5.
+    ///
+    /// Retirement is per PROPERTY: the same broken rule reached by forty paths
+    /// is one defect. It used to be keyed on the caller-supplied name STRING,
+    /// so two distinct claims that happened to share a name retired each other
+    /// — the second was never evaluated at any depth, in a report stamped
+    /// `exhausted: true`. `Named::new` takes a free-form `impl Into<String>`
+    /// with no uniqueness check anywhere, and an acceptance set composed from
+    /// two modules is this crate's whole distribution story.
+    #[test]
+    fn two_properties_with_one_name_are_both_checked() {
+        let first = Named::new("invariant", |_: &Observation<'_>| {
+            Err("the FIRST claim broke".to_string())
+        });
+        let second = Named::new("invariant", |_: &Observation<'_>| {
+            Err("the SECOND claim broke".to_string())
+        });
+        let report = Explorer::new(Key::navigation()).explore(dial, &[&first, &second]);
+
+        let Verdict::Violated(found) = report.verdict() else {
+            panic!("both claims broke: {report}")
+        };
+        let details: Vec<&str> = found.iter().map(|v| v.detail.as_str()).collect();
+        assert_eq!(
+            details,
+            ["the FIRST claim broke", "the SECOND claim broke"],
+            "a property silenced by a NAME COLLISION is never checked at any \
+             depth, in a report that calls itself exhaustive: {report}"
+        );
+    }
+
     /// The recorded corpus is the states themselves — data a reimplementation
     /// can be held to without sharing code with this one.
     #[test]
