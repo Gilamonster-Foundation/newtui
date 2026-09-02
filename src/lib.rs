@@ -312,6 +312,65 @@ mod tests {
         assert!(full.exhausted && full.is_clean(), "{full}");
     }
 
+    /// **A state the fingerprint merges is a state the walk DROPS**, and the
+    /// report still says `exhausted: true`.
+    ///
+    /// This is why the fingerprint's identity had to become structural rather
+    /// than get better separators. `seen.insert(component.fingerprint())` is
+    /// the gate: when two distinct states collide there, the second is never
+    /// recorded and never enqueued, so everything reachable only through it is
+    /// unreachable to the search — while the queue empties normally and every
+    /// honesty mechanism in the crate reports a finished, complete walk. The
+    /// false-completeness class, in the DEFAULT path, with no caller mistake.
+    ///
+    /// Four separators, because the defect was never a particular character:
+    /// each pair below collides under some flattening of the structure into one
+    /// string, and the empty one collides under all of them. A structural
+    /// identity has no flattening to collide in.
+    #[test]
+    fn a_state_the_fingerprint_merges_is_a_state_the_walk_drops() {
+        struct Sneaky {
+            n: u8,
+            sep: &'static str,
+        }
+        impl Component for Sneaky {
+            fn handle(&mut self, key: Key) -> Flow {
+                if key == Key::Right && self.n < 2 {
+                    self.n += 1;
+                }
+                Flow::Stay
+            }
+            fn view(&self) -> View {
+                let (title, footer) = match self.n {
+                    0 => (format!("a{}b", self.sep), "c".to_string()),
+                    1 => ("a".to_string(), format!("b{}c", self.sep)),
+                    // Reachable ONLY through state 1.
+                    _ => ("third".to_string(), String::new()),
+                };
+                View::titled(title)
+                    .row(Row::new("r", "v").selected())
+                    .footer(footer)
+            }
+        }
+
+        let in_range = properties::selection_is_always_in_range();
+        for sep in ["\u{1f}", "/", " | ", ""] {
+            let report = Explorer::new([Key::Right]).explore(|| Sneaky { n: 0, sep }, &[&in_range]);
+            assert!(report.exhausted, "nothing capped this walk: {report}");
+            assert_eq!(
+                report.states, 3,
+                "separator {sep:?}: two distinct states merged, so the third — \
+                 reachable only through the second — was never walked, and the \
+                 report says the search finished: {report}"
+            );
+            assert!(
+                report.views.iter().any(|v| v.title == "third"),
+                "separator {sep:?}: the corpus is a silent SUBSET, handed to a \
+                 reimplementation as the states it must satisfy: {report}"
+            );
+        }
+    }
+
     /// **A walk that checked no property is not a clean bill** — P6.
     ///
     /// It finished, it hit no limit, and it judged nothing: `is_clean()` used

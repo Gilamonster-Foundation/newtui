@@ -60,6 +60,39 @@ const MUTATIONS: &[Mutation] = &[
         cargo_args: &[],
     },
     Mutation {
+        defect: "the fingerprint's identity is a FLATTENED STRING again — the \
+                 structural boundary between a view and a caller's seed \
+                 removed, so a separator that is content merges two states \
+                 and the walk drops everything reachable only through the \
+                 second",
+        file: "src/component.rs",
+        from: "        Self {
+            base: FingerprintBase::View(view.clone()),
+            extra: Vec::new(),
+        }",
+        to: "        Self::of(Fingerprint {
+            base: FingerprintBase::View(view.clone()),
+            extra: Vec::new(),
+        })",
+        expect_red: "component::tests::no_two_distinct_states_can_share_a_fingerprint",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "`and` is an UNFRAMED ACCUMULATOR again — folds run together, \
+                 so `.and(\"y\").and(\"z\")` is the same state as \
+                 `.and(\"y\\u{1d}z\")`",
+        file: "src/component.rs",
+        from: "        self.extra.push(more.to_string());",
+        to: "        if let Some(last) = self.extra.last_mut() {
+            last.push('\\u{1d}');
+            last.push_str(&more.to_string());
+        } else {
+            self.extra.push(more.to_string());
+        }",
+        expect_red: "component::tests::no_two_distinct_states_can_share_a_fingerprint",
+        cargo_args: &[],
+    },
+    Mutation {
         defect: "a closing state's view is dropped from the corpus, which then \
                  calls itself complete (bug 3a — what the deleted second walk \
                  shipped)",
