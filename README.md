@@ -77,6 +77,11 @@ combinatorial explosion.
 failure reports the minimal key sequence that reaches it, by construction —
 there is no shrinking step to trust, tune, or wait for.
 
+The recorded corpus works the same way: `Explorer::states` returns a `Corpus`
+carrying `complete`, because a corpus handed to a reimplementation as "the
+states it must satisfy" would, if quietly truncated, pass something that does
+less.
+
 ## Properties are data
 
 An acceptance property is a named check over a state or a transition. The

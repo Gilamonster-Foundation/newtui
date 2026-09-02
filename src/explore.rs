@@ -110,6 +110,17 @@ impl core::fmt::Display for Report {
     }
 }
 
+/// Every distinct view a component reached, and whether that is all of them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Corpus {
+    /// The views, in discovery order.
+    pub views: Vec<View>,
+    /// False when the walk stopped at a limit. A corpus that is quietly a
+    /// SUBSET is the failure mode here: handed to a reimplementation as the
+    /// states it must satisfy, it would pass something that does less.
+    pub complete: bool,
+}
+
 /// Walks every reachable state of a component, checking properties.
 pub struct Explorer {
     alphabet: Vec<Key>,
@@ -297,7 +308,13 @@ impl Explorer {
     /// The corpus half of the harness: a recorded set of states is data a
     /// REIMPLEMENTATION can be held to, in another language or another
     /// framework, without sharing a line of code with this one.
-    pub fn states<C: Component>(&self, factory: impl Fn() -> C) -> Vec<View> {
+    ///
+    /// Returns a [`Corpus`] rather than a bare `Vec` for the same reason
+    /// [`Report`] carries `exhausted`: this walk can be truncated by either
+    /// limit, and a truncated corpus handed to a reimplementation as "the
+    /// states" would understate what it must satisfy — a conformance suite
+    /// that is quietly a subset is worse than one that admits its size.
+    pub fn states<C: Component>(&self, factory: impl Fn() -> C) -> Corpus {
         let mut seen: HashSet<Fingerprint> = HashSet::new();
         let mut views = Vec::new();
         let mut queue: VecDeque<Vec<Key>> = VecDeque::new();
@@ -307,8 +324,10 @@ impl Explorer {
         views.push(start.view());
         queue.push_back(Vec::new());
 
+        let mut complete = true;
         while let Some(path) = queue.pop_front() {
             if path.len() >= self.max_depth || views.len() >= self.max_states {
+                complete = false;
                 break;
             }
             for key in &self.alphabet {
@@ -327,6 +346,6 @@ impl Explorer {
                 }
             }
         }
-        views
+        Corpus { views, complete }
     }
 }

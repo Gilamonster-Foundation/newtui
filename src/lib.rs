@@ -44,7 +44,7 @@ mod property;
 mod view;
 
 pub use component::{Component, Fingerprint, Flow};
-pub use explore::{Explorer, Report, Violation};
+pub use explore::{Corpus, Explorer, Report, Violation};
 pub use key::Key;
 pub use property::{properties, Named, Observation, Property};
 pub use view::{Row, View};
@@ -287,9 +287,24 @@ mod tests {
     /// can be held to without sharing code with this one.
     #[test]
     fn the_state_corpus_is_recordable() {
-        let states = Explorer::new(Key::navigation()).states(dial);
-        assert_eq!(states.len(), 4);
-        let values: Vec<&str> = states.iter().map(|v| v.rows[0].value.as_str()).collect();
+        let corpus = Explorer::new(Key::navigation()).states(dial);
+        assert_eq!(corpus.views.len(), 4);
+        assert!(corpus.complete, "and it is all of them, which is the claim");
+        let values: Vec<&str> = corpus
+            .views
+            .iter()
+            .map(|v| v.rows[0].value.as_str())
+            .collect();
         assert_eq!(values, ["0", "1", "2", "3"], "in discovery order");
+
+        // A truncated corpus says so. Handed to a reimplementation as "the
+        // states", a silent subset would pass something that does less — the
+        // same false-completeness class as a capped search reporting itself
+        // exhausted, one function over.
+        let capped = Explorer::new(Key::navigation()).max_states(2).states(dial);
+        assert!(
+            !capped.complete,
+            "a capped corpus is a subset, and admits it"
+        );
     }
 }
