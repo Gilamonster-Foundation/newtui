@@ -16,7 +16,8 @@
 #            does `lean-mutations`, which seeds four proof-gate mutations and
 #            runs `lake build` on one of them.
 #   `tla`    needs a JRE and a pinned 10 MB tla2tools.jar.
-#   `mutations` needs the same JRE and jar, and runs nine TLC invocations.
+#   `tla-mutations` needs the same JRE and jar, and runs nine TLC
+#   invocations.
 #
 # Requiring a Lean install and a JVM in every developer's pre-push would be
 # disproportionate, and a hook people route around is worse than no hook. Those
