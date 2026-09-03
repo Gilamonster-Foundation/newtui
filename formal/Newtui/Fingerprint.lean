@@ -132,13 +132,29 @@ def quotStep (c : Comp S K F V) (h : Transfers c) (k : K) :
     is consistent IF AND ONLY IF the serialiser is injective, and the injectivity
     is now something a reader can see is being assumed.
 
-    STATUS AGAINST `src/`: the sibling branch `fix/false-completeness-class` is
-    making `Fingerprint` structural — a `View` base plus a `Vec<String>` of
-    extras, replacing the concatenated `String` precisely because of this
-    collision. Under that representation `enc` becomes the identity on the base,
-    `ofView_consistent` below is discharged for real, and the correspondence this
-    file claims becomes true for the first time. Until it lands, the honest
-    reading is `smudge`, not `ofView_consistent`. -/
+    STATUS AGAINST `src/` — THIS HAS LANDED. `Fingerprint` on `main` is
+    structural: a `FingerprintBase` that is either the `View` itself or a
+    caller's opaque seed, plus `extra : Vec<String>`, one element per `and`.
+    There is no serialiser left to be non-injective, so `enc` is the identity
+    on the base and `ofView_consistent` below — the `enc = id` corollary —
+    describes the shipped default for the first time.
+
+    Three things that stay true and must not be rounded off:
+
+    * `smudge` and `smudge_not_consistent` are kept as the REGRESSION WITNESS
+      for the representation that shipped, not as a description of live code. A
+      counterexample retired from the implementation is still the reason the
+      hypothesis is stated;
+    * consistency of the default is a claim about VIEWS, and the Rust guard
+      that pins it was renamed `structural_fingerprints_keep_their_boundaries`
+      for the same reason this file distinguishes them: two states the view
+      cannot tell apart SHOULD share a fingerprint, and the crate documents
+      that non-injectivity as design. `Consistent` here is the behavioural
+      property, never state identity;
+    * `Fingerprint::of` still takes an arbitrary caller summary. Nothing in
+      Lean or in Rust makes a caller's summary injective — that obligation is
+      `Transfers`, it is discharged by the CALLER, and `sneak_not_transfers`
+      is what a violation of it looks like. -/
 
 /-- The default with the ENCODING made explicit: `fp = enc ∘ view`, which is
     what `Fingerprint::of_view` is. -/
@@ -169,16 +185,17 @@ theorem smudge_not_consistent : ¬ Consistent smudge := by
   intro h
   exact absurd (h false true rfl) (by decide)
 
-/-- `Fingerprint::of_view` under the representation the sibling branch is moving
-    to: the fingerprint IS the view, `enc = id`. -/
+/-- `Fingerprint::of_view` under the representation the crate SHIPS: the
+    fingerprint holds the view itself, so `enc = id`. -/
 def ofView (step : S → K → S) (view : S → V) : Comp S K V V :=
   ofEncodedView step view id
 
 /-- Under an INJECTIVE default the observation half is definitional, so a guard
     that records the `View` beside the `Fingerprint` and asserts on a collision
     is inert — which is the claim the rest of this file is built on. It holds
-    for `enc = id`. It does NOT hold for the concatenating `enc` shipped today;
-    see `smudge`. -/
+    for `enc = id`, which is the structural `Fingerprint` on `main`. It does
+    NOT hold for the concatenating `enc` that shipped before it — see `smudge`,
+    kept as the witness for why the hypothesis has to be stated at all. -/
 theorem ofView_consistent (step : S → K → S) (view : S → V) :
     Consistent (ofView step view) :=
   ofEncodedView_consistent_of_injective step view id fun _ _ h => h

@@ -56,11 +56,12 @@ Two things about the statement, both of which cost a rewrite to get right:
 
 | Configuration | Verdict | What it says |
 |---|---|---|
-| `ExplorerReplay.cfg` | green | The honest world (`"free"`) at HEAD, `GuardOn = FALSE`. Carries `ModelMatchesRust` — **the bridge**. |
-| `DepartureGuardCloses.cfg` | green | `{"free","drain"}` with the S0 departure guard ON. Identical to `mutations/ReplayGuardOff.cfg` except for `GuardOn`, and that one is RED. The pair is the argument that the guard is load-bearing. |
+| `ExplorerReplay.cfg` | green | The honest world at HEAD: `{"free","drain"}`, `GuardOn = TRUE` — the crate as it is on `main`. Carries `ModelMatchesRust` — **the bridge**, now binding both worlds. |
+| `DepartureGuardCloses.cfg` | green | `{"free","drain"}` with the departure guard ON. Identical to `mutations/ReplayGuardOff.cfg` except for `GuardOn`, and that one is RED. The pair is the argument that the guard is load-bearing; the green half is a REFUSAL to claim coverage from a diverged run, which is what the crate does. |
 | `NarrowingHolds.cfg` | green | `ExhaustedOnlyNarrows`, in its own cfg. Bug 1 is fixed and stays fixed. |
 | `PrewarmedConsistent.cfg` | green | The residue, green half: a pre-warmed run is the *sound and complete* report of a real machine. |
-| `mutations/ReplayGuardOff.cfg` | **RED** on `CoversColdReach` | **Bug 3b, live at `7f69a3d`.** The counterexample is below. |
+| `mutations/ReplayGuardOff.cfg` | **RED** on `CoversColdReach` | **Bug 3b.** Live when this was written; now the regression witness for a guard that has landed. The counterexample is below. |
+| `mutations/BridgeBindsDrain.cfg` | **RED** on `ModelMatchesRust` | The drain binding constrains. The model without the guard cannot match a real run that has it — so the extension of the bridge to `"drain"` is evidence, not decoration. |
 | `mutations/NarrowOff.cfg` | **RED** on `ExhaustedOnlyNarrows` | Bug 1's regression gate (`=` in place of `&=` at `:280`). |
 | `mutations/PrewarmedResidue.cfg` | **RED** on `CoversColdReach` | The residue, red half. Permanent by design. |
 | `mutations/HonestRunExists.cfg` | **RED** on `ClaimSurvives` | The anti-vacuity probe: an honest exhaustive run IS reachable, so the greens above are not holding on an unreachable antecedent. |
@@ -160,13 +161,14 @@ TLC red on `ModelMatchesRust`.
 
 **Its honest limits**, so nobody oversells it:
 
-- it binds **four scalars per cap in one world mode** (`"free"`), not a
-  refinement. `"drain"` becomes bindable when the departure guard exists in the
-  crate, because the model with `GuardOn = TRUE` describes post-fix code;
-- it binds `Explorer::explore` only. `Explorer::states` — where bug 3a lives —
-  is a second hand-written walk, deliberately unmodelled because it is being
-  deleted;
-- a model change that is wrong in a way the four counters cannot see is
+- it binds **five observations per cap in two world modes** (`"free"` and
+  `"drain"`), not a refinement. `"drain"` became bindable when the departure
+  guard landed in the crate; `"prewarmed"` stays unbound on purpose, because it
+  is indistinguishable from `"free"` from inside the run, so binding it would
+  add no information while implying some had been gained;
+- it binds `Explorer::explore` only — which is now the crate's only walk.
+  `Explorer::states`, where bug 3a lived, has been deleted along with its bug;
+- a model change that is wrong in a way the five observations cannot see is
   invisible to it. What compensates is (i) the mutation runner, which is
   mechanical, and (ii) this module being small enough — one component, one arm
   — that a reader can hold it against `explore.rs:172-282` in one sitting. That
@@ -222,8 +224,9 @@ Said out loud rather than discovered later.
   cursor and a second terminal. Its residuals (the cap overshoots by
   `|alphabet| - 1`; the initial state is exempt at `:195`) are off-by-N facts a
   four-line Rust test settles.
-- **The second walk (`Explorer::states`)** — it is being deleted. Specifying
-  code that should not exist removes bug 3a until someone edits the copy.
+- **The second walk (`Explorer::states`)** — deleted from the crate, so there
+  is nothing left to specify. `Report.views` from the one walk replaced it, and
+  bug 3a went with the function that had it.
 - **Liveness and fairness** — the walk terminates by construction, so every
   liveness property would report a counterexample that says nothing about the
   code.
