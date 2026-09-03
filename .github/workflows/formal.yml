@@ -7,7 +7,7 @@ name: formal (TLA+ model + Lean obligation)
 #
 # HOOK PARITY: .githooks/pre-push runs the CHEAP half of this workflow —
 # `no-sorry` (a grep) and `model` (one cargo run and a diff), both via
-# `just check`. The `lean`, `tla` and `mutations` jobs are CI-only BY DESIGN:
+# `just check`. The `lean`, `tla` and `tla-mutations` jobs are CI-only BY DESIGN:
 # they need a Lean toolchain and a JRE plus a pinned 10 MB tla2tools.jar, and
 # requiring both in every developer's pre-push would be disproportionate — a
 # hook people route around is worse than no hook. This is the shape
