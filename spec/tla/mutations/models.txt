@@ -15,6 +15,7 @@
 # Imported modules (ExplorerReplay, RustObs) are symlinks under lib/, excluded
 # by location, exactly as in the parent directory.
 
+BridgeBindsDrain
 DecoyOverlap
 HonestRunExists
 NarrowOff
