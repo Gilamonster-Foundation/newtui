@@ -98,21 +98,43 @@ fi
 
 # ── Needle 3b: every theorem is named in the axiom audit ────────────────────
 # Without this, the audit is a subset, and a subset is where the next theorem
-# lands unwatched. Grep-only: a theorem name and a `#print axioms` line, no Lean
-# parsing.
+# lands unwatched. Grep-only: a declaration name and a `#print axioms` line, no
+# Lean parsing.
+#
+# THE GRAMMAR THIS RECOGNISES, and it is a grammar rather than the word
+# `theorem` because the first version was the word and it had a hole a review
+# found: `@[simp] theorem foo` and `lemma foo` both landed OUTSIDE the audit
+# with the gate green, still reporting its count of audited declarations. The
+# recognised forms are, in order on one line:
+#
+#   * any number of attribute groups — `@[simp]`, `@[simp, norm_cast]`;
+#   * any of the modifiers `private`, `protected`, `noncomputable`;
+#   * the keyword `theorem` OR `lemma`;
+#   * the name, which may be dotted (`Foo.bar`).
+#
+# Attributes on their OWN line need nothing: the declaration line then begins
+# with the keyword and matches the plain form.
+#
+# LIMITS, stated because a scanner that does not state them gets trusted past
+# them. This does not parse Lean. It will not see a declaration produced by a
+# macro or `deriving`, one whose keyword is separated from its attributes by a
+# line break in the middle of the attribute list, or an `example`/`instance`
+# that carries a proof obligation under another keyword. Needle 3a and the
+# `#guard_msgs` pins are the defences that do not depend on this recognition;
+# a Lean-environment enumeration would replace it, and is the right next slice.
 missing=0
 while read -r name; do
   [ -n "$name" ] || continue
   grep -qE "^[[:space:]]*#print axioms[[:space:]]+${name}[[:space:]]*$" "${files[@]}" || {
-    echo "check-lean-proofs: theorem '$name' has no '#print axioms $name' audit line." >&2
+    echo "check-lean-proofs: '$name' has no '#print axioms $name' audit line." >&2
     missing=$((missing + 1))
   }
-done < <(grep -hoE '^[[:space:]]*(private[[:space:]]+|protected[[:space:]]+)*theorem[[:space:]]+[A-Za-z_][A-Za-z0-9_'"'"'!?]*' "${files[@]}" \
-         | sed -E 's/.*theorem[[:space:]]+//')
+done < <(grep -hoE '^[[:space:]]*(@\[[^]]*\][[:space:]]*)*(private[[:space:]]+|protected[[:space:]]+|noncomputable[[:space:]]+)*(theorem|lemma)[[:space:]]+[A-Za-z_][A-Za-z0-9_.'"'"'!?]*' "${files[@]}" \
+         | sed -E 's/.*(theorem|lemma)[[:space:]]+//')
 
 if [ "$missing" -gt 0 ]; then
   echo >&2
-  echo "$missing theorem(s) are outside the axiom audit. Add, next to the" >&2
+  echo "$missing declaration(s) are outside the axiom audit. Add, next to the" >&2
   echo "others in Fingerprint.lean's AxiomAudit section:" >&2
   echo >&2
   echo "    /-- info: 'Newtui.<name>' does not depend on any axioms -/" >&2
