@@ -102,6 +102,34 @@ seeded_text "M3 unaudited theorem" "has no '#print axioms" \
   'theorem seeded_unaudited : 1 = 1 := rfl' \
   'end Newtui'
 
+# M5. An ATTRIBUTED theorem outside the audit. The form the first version of
+# needle 3b could not see: its extraction matched `theorem` preceded only by
+# `private`/`protected`, so `@[simp] theorem` was invisible and the gate stayed
+# GREEN while still reporting its count of audited declarations. Verified
+# against the pre-fix script before the fix was written.
+seeded_text "M5 attributed theorem" "has no '#print axioms" \
+  'namespace Newtui' \
+  '@[simp] theorem seeded_attributed : 1 = 1 := rfl' \
+  'end Newtui'
+
+# M6. A `lemma`. Same hole, second keyword: nothing in Lean makes `lemma` a
+# lesser obligation, and a proof gate that audits one keyword and not its
+# synonym audits whichever one the next author does not use.
+seeded_text "M6 lemma" "has no '#print axioms" \
+  'namespace Newtui' \
+  'lemma seeded_lemma : 2 = 2 := rfl' \
+  'end Newtui'
+
+# M7. An attributed theorem that IS backed by a declared assumption. M5 proves
+# the form reaches the audit; this proves what reaching the audit is FOR — the
+# same declaration carrying an axiom is caught, and by needle 3a rather than by
+# 3b, so neither needle is load-bearing alone.
+seeded_text "M7 attributed theorem over an assumption" 'declaration is above' \
+  'namespace Newtui' \
+  'axiom seeded_gap : False' \
+  '@[simp] theorem seeded_attributed_uses_it : 0 = 1 := seeded_gap.elim' \
+  'end Newtui'
+
 # ── M4: the build gate ──────────────────────────────────────────────────────
 # The mutation no grep can see. `Classical.byContradiction` pulls
 # `Classical.choice` in from core; the theorem carries an audit line claiming no
