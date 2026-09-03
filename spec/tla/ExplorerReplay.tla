@@ -5,8 +5,8 @@
 (*                                                                         *)
 (* READ THIS BEFORE CITING THIS WORK.                                      *)
 (* ---------------------------------                                       *)
-(* Nothing here reads the Rust except `ModelMatchesRust`, which binds four  *)
-(* report counters in ONE world mode (see "THE BRIDGE" below). Every other  *)
+(* Nothing here reads the Rust except `ModelMatchesRust`, which binds five  *)
+(* report facts in TWO world modes (see "THE BRIDGE" below). Every other    *)
 (* invariant is a theorem about THIS FILE. Citing `CoversColdReach` as "we  *)
 (* proved the explorer is honest" is worse than no proof at all: the model  *)
 (* is hand-written and nothing but the bridge forces it to agree with       *)
@@ -32,9 +32,9 @@
 (* DELIBERATELY ABSENT, each for a reason:                                  *)
 (*  * `max_states` — no bug lives there; its residuals are off-by-N facts a *)
 (*    four-line Rust test settles, and modelling it costs a second terminal.*)
-(*  * `Explorer::states` (the second walk) — it is being deleted, and       *)
-(*    specifying code that should not exist removes bug 3a until someone    *)
-(*    edits the copy.                                                       *)
+(*  * `Explorer::states` (the second walk) — DELETED from the crate, so      *)
+(*    there is no longer anything to specify. Bug 3a was its bug and it     *)
+(*    went with it; `Report.views` from the one walk is what replaced it.   *)
 (*  * liveness and fairness — the walk terminates by construction, so every *)
 (*    liveness property would report a counterexample that says nothing     *)
 (*    about the code.                                                       *)
@@ -50,7 +50,8 @@ CONSTANTS
     \* @type: Set(Str);
     WorldModes,     \* subset of {"free", "drain", "prewarmed"}
     \* @type: Bool;
-    GuardOn,        \* the S0 departure guard: does replay land where discovery said?
+    GuardOn,        \* the departure guard: does replay land where discovery said?
+                    \* TRUE describes main; FALSE is the historical counterexample.
     \* @type: Bool;
     Narrow,         \* TRUE models `&=` at :280; FALSE models the pre-5307cd7 `=`.
     \* @type: Str;
@@ -121,7 +122,7 @@ Walk(n, path) == IF path = <<>> THEN n ELSE Walk(Step[n][Head(path)], Tail(path)
 VARIABLES
     \* @type: Seq(<<Seq(Str), Str>>);
     queue,      \* <<path, node RECORDED AT DISCOVERY>>. The witness explore.rs
-                \* throws away at :273. This data structure IS the S0 fix.
+                \* used to throw away. This data structure is `Departure`.
     \* @type: <<Seq(Str), Str>>;
     cur,        \* the dequeued item being expanded, or NoItem.
     \* @type: Set(Str);
@@ -144,10 +145,12 @@ VARIABLES
     \* @type: Str;
     world,      \* chosen once from WorldModes, then constant
     \* @type: Bool;
+    diverged,   \* report.divergences() is non-empty
+    \* @type: Bool;
     done
 
 vars == << queue, cur, pending, judged, seen, exhausted,
-           nStates, nTrans, nTerm, maxDepth, world, done >>
+           nStates, nTrans, nTerm, maxDepth, world, diverged, done >>
 
 NoItem == <<>>   \* distinguishable from a real 2-tuple item
 
@@ -174,6 +177,7 @@ Init ==
     /\ nStates   = 1                        \* :195
     /\ nTrans    = 0
     /\ nTerm     = 0
+    /\ diverged  = FALSE
     /\ done      = FALSE
 
 \* :205-216. The departure guard is evaluated once per dequeued path rather
@@ -190,11 +194,31 @@ Take ==
           THEN /\ cur'       = NoItem
                /\ pending'   = {}
                /\ exhausted' = FALSE                          \* :214
-          ELSE /\ cur'     = item
-               /\ pending' = Keys
-               \* NOT IN THE CRATE AT 7f69a3d. This is S0's departure guard.
-               /\ exhausted' = IF GuardOn /\ Landed(item) # item[2]
-                               THEN FALSE ELSE exhausted
+               /\ diverged'  = diverged
+          \* THE DEPARTURE GUARD, as `Explorer::replay_to` now implements it.
+          \* Two halves, and both are load-bearing:
+          \*   * the divergence is RECORDED — `report.divergences` becomes
+          \*     non-empty, which is what makes the verdict `Incomplete`;
+          \*   * and NOTHING is judged from here. The crate `break`s out of the
+          \*     key loop, so no outgoing key is applied to a machine the
+          \*     search never explored. `cur' = NoItem` is that break.
+          \* Note what does NOT happen: `exhausted` is untouched. In the crate
+          \* it still means "ran out of frontier rather than hitting a limit",
+          \* and a diverged run can be both exhausted and worthless. The
+          \* invariants below therefore ask for `~diverged` as well.
+          ELSE IF GuardOn /\ Landed(item) # item[2]
+          THEN /\ cur'       = NoItem
+               /\ pending'   = {}
+               /\ exhausted' = exhausted
+               /\ diverged'  = TRUE
+          \* With the guard OFF this is the crate BEFORE the guard landed: the
+          \* replay went somewhere else, nothing noticed, and every key below
+          \* was applied to that other machine. Kept as the counterexample
+          \* mutations/ReplayGuardOff.cfg executes, not as live behaviour.
+          ELSE /\ cur'       = item
+               /\ pending'   = Keys
+               /\ exhausted' = exhausted
+               /\ diverged'  = diverged
     /\ UNCHANGED << judged, seen, nStates, nTrans, nTerm, maxDepth, world, done >>
 
 \* :217-275. One key. `judged` grows for EVERY post-state, closing or not;
@@ -220,7 +244,7 @@ ApplyKey ==
                             /\ queue'   = Append(queue,
                                             << Append(cur[1], k), to >>)
                        ELSE UNCHANGED << seen, nStates, queue >>
-    /\ UNCHANGED << cur, exhausted, maxDepth, world, done >>
+    /\ UNCHANGED << cur, exhausted, maxDepth, world, diverged, done >>
 
 Finish ==
     /\ ~done
@@ -228,7 +252,7 @@ Finish ==
     /\ pending = {}
     /\ cur' = NoItem
     /\ UNCHANGED << queue, pending, judged, seen, exhausted,
-                    nStates, nTrans, nTerm, maxDepth, world, done >>
+                    nStates, nTrans, nTerm, maxDepth, world, diverged, done >>
 
 \* :280. `&=` narrows and never restores; `Narrow = FALSE` is the pre-5307cd7
 \* `=`, which erased a depth truncation recorded at :214.
@@ -239,7 +263,7 @@ Terminate ==
     /\ done' = TRUE
     /\ exhausted' = IF Narrow THEN exhausted ELSE TRUE
     /\ UNCHANGED << queue, cur, pending, judged, seen,
-                    nStates, nTrans, nTerm, maxDepth, world >>
+                    nStates, nTrans, nTerm, maxDepth, world, diverged >>
 
 Stutter == done /\ UNCHANGED vars
 
@@ -253,7 +277,8 @@ Spec == Init /\ [][Next]_vars      \* safety only; see "liveness" in the header
 
 \* What the CONSUMER cares about: a report stamped exhaustive must have
 \* covered the reach set of the machine a fresh process would build.
-CoversColdReach == (done /\ exhausted) => Covers(judged, ReachOf(ColdStart))
+CoversColdReach ==
+    (done /\ exhausted /\ ~diverged) => Covers(judged, ReachOf(ColdStart))
 
 \* Whether the run was the honest report of SOME machine. The pair splits the
 \* case (it is not a redundant second guard, which would give the same answer
@@ -262,7 +287,7 @@ CoversColdReach == (done /\ exhausted) => Covers(judged, ReachOf(ColdStart))
 \* internally honest about a component the consumer will never construct, and
 \* nothing in the crate names which machine was tested.
 ReplayIsConsistent ==
-    (done /\ exhausted) =>
+    (done /\ exhausted /\ ~diverged) =>
         \E m \in Machines : Covers(judged, ReachOf(m)) /\ Covers(ReachOf(m), judged)
 
 \* Bug 1's shape as a two-state relation: the flag may go TRUE -> FALSE and
@@ -280,17 +305,26 @@ ExhaustedOnlyNarrows == [][exhausted' => exhausted]_vars
 \* report, so regeneration rewrites only the Rust side: a drifted model stays
 \* RED after regeneration and cannot auto-heal the way a golden vector does.
 \*
-\* LIMIT, stated plainly: it binds the "free" world only. Binding "drain"
-\* requires S0's departure guard to exist in the crate, because the model with
-\* `GuardOn = TRUE` describes post-S0 code. That is the next slice, not a
-\* claim made here.
+\* IT NOW BINDS TWO WORLDS. "drain" became bindable when the departure guard
+\* landed in the crate: `gen_model` runs the SAME `Explorer::explore` over a
+\* factory whose first product is the warm node and whose every later product
+\* is the cold one, which is what `InitNode`/`ReplayNode` say "drain" is. That
+\* run is what pins the guard's observable behaviour — one divergence, nothing
+\* judged past it, and `report.exhausted` still TRUE — rather than leaving the
+\* guard-on model a description of code nobody ran.
+\*
+\* LIMITS, still: five observations per cap per world, not a refinement.
+\* "prewarmed" is deliberately NOT bound — see PrewarmedConsistent.cfg, whose
+\* whole point is that it is indistinguishable from "free" from inside, so a
+\* binding would add no information and would suggest one had been gained.
 \* ---------------------------------------------------------------------------
 ModelMatchesRust ==
-    (done /\ world = "free") =>
-        /\ nStates   = ObsStates[maxDepth]
-        /\ nTrans    = ObsTransitions[maxDepth]
-        /\ nTerm     = ObsTerminal[maxDepth]
-        /\ exhausted = ObsExhausted[maxDepth]
+    (done /\ world \in {"free", "drain"}) =>
+        /\ nStates   = ObsStates[world][maxDepth]
+        /\ nTrans    = ObsTransitions[world][maxDepth]
+        /\ nTerm     = ObsTerminal[world][maxDepth]
+        /\ exhausted = ObsExhausted[world][maxDepth]
+        /\ diverged  = ObsDiverged[world][maxDepth]
 
 \* ---------------------------------------------------------------------------
 \* MUST-GO-RED PROBE. Deliberately kept out of every shipped cfg and executed

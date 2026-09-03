@@ -3,9 +3,10 @@
 #
 # A hand-written TLA+ module is a model of `explore.rs` that NOTHING forces to
 # agree with it. `examples/gen_model.rs` runs the real `Explorer::explore` over
-# a Rust component implementing exactly the model's transition function, and
-# emits its four report counters as `spec/tla/lib/RustObs.tla`. The model computes
-# those same four numbers from its own transitions; `ModelMatchesRust` compares.
+# a Rust component implementing exactly the model's transition function — once
+# with a pure factory and once with a draining one — and emits five report
+# facts per world as `spec/tla/lib/RustObs.tla`. The model computes those same
+# five facts from its own transitions; `ModelMatchesRust` compares.
 #
 # TWO GATES, and both are needed:
 #   1. THIS SCRIPT — regenerate and diff. A change to `explore.rs` that moves a
@@ -18,12 +19,13 @@
 # into "somebody edited the number to match".
 #
 # HONEST LIMITS, stated so nobody oversells this:
-#   * it binds FOUR SCALARS PER CAP in ONE world mode ("free"), not a
-#     refinement. `WorldMode = "drain"` becomes bindable when S0's departure
-#     guard lands in the crate;
-#   * it binds `Explorer::explore` only. `Explorer::states` — where bug 3a
-#     lives — is a second hand-written walk and is deliberately unmodelled,
-#     because it is being deleted;
+#   * it binds FIVE OBSERVATIONS PER CAP in TWO world modes ("free" and
+#     "drain"), not a refinement. "drain" became bindable when the departure
+#     guard landed; "prewarmed" stays unbound on purpose, because it is
+#     indistinguishable from "free" from inside the run, so a binding would
+#     add nothing and imply something;
+#   * it binds `Explorer::explore` only, which is now the crate's only walk —
+#     `Explorer::states` and its bug 3a are deleted;
 #   * a model change that is wrong in a way the four counters cannot see is
 #     invisible to it.
 #
