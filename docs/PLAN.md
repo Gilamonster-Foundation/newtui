@@ -96,7 +96,7 @@ Say this out loud in any PR that claims coverage:
 
 ## The work packages
 
-Dependencies are stated. A–B–C are the critical path; D–H can start in
+Dependencies are stated. A–B–C are the critical path; D–I can start in
 parallel once A is in.
 
 ---
@@ -229,6 +229,95 @@ client for anybody's database.
 Do not start this before B. A dashboard over a chart vocabulary that has not
 been proven at eight columns wide is a demo, not a product.
 
+#### F.1 — the panel geometry is a BSP of ratios, not a grid of cells
+
+Panels tile a BSP tree. Every split holds an `f32` ratio for its first child,
+clamped to a sane band, and rects are DERIVED at render from the area the host
+passes in. Sizes are never stored in cells.
+
+This is the one design decision in F that cannot be deferred, because the
+alternative was measured and it loses. tmux's model — absolute integer cell
+sizes, re-fitted to a new terminal by round-robin +/-1 nudging — is what
+`gilamonster-agent/src/layout.rs` ports today. On an 80/20 split of a 200-column
+terminal, halving the terminal gives:
+
+```text
+  start            [159,  40]   ratios 0.799 / 0.201
+  round-robin      [107,   1]   ratios 1.081 / 0.010   <- overflows 100 cells
+  ratio            [ 79,  20]   ratios 0.798 / 0.202
+
+  then grow back to 200:
+  round-robin      [153,  46]   started at [159, 40]; never returns
+  ratio            [159,  40]   exact round-trip
+```
+
+Absolute-plus-clamp is lossy: once a panel floors at its minimum the original
+proportion is gone, so a shrink/grow cycle silently rewrites the operator's
+layout. Ratios round-trip by construction. **A dashboard whose panels drift
+every time the terminal changes is not a dashboard the operator can trust.**
+
+The donor is `gilamonster-agent/src/layout.rs` plus `keys.rs` — both already
+import neither `newt-*` nor `ratatui` (std and crate only, verified), so they
+satisfy the leaf invariant TODAY. The resize model swaps to ratios **during**
+the extraction, not after: three consumers are about to depend on this, and
+fixing it later means fixing it in three places.
+
+#### F.2 — mouse resize, without newtui knowing what a mouse is
+
+The layout exposes its dividers as data:
+
+```rust
+pub struct SplitBorder {
+    pub pos: u16,            // divider line: x for a horizontal split, y for vertical
+    pub direction: Direction,
+    pub ratio: f32,          // the split's current first-child ratio
+    pub area: Rect,          // the split node's area
+    pub path: Vec<bool>,     // root -> this split (false = first, true = second)
+}
+
+fn splits(&self, area: Rect) -> Vec<SplitBorder>;
+fn set_ratio_at(&mut self, path: &[bool], ratio: f32) -> bool;
+```
+
+The HOST decodes the pointer, hit-tests it against `pos`, and on a drag sends
+`set_ratio_at(path, (x - area.x) / area.width)`. The component never sees a
+mouse event, newtui never imports a terminal library, and the leaf invariant is
+untouched. This is rule 2 — components describe, hosts draw and act — applied
+to a pointer instead of a key. (The shape is herdr's; it is the reason herdr's
+panes drag cleanly and ours do not.)
+
+A drag is continuous and the `Explorer` walks a finite alphabet, so a ratio
+enters the vocabulary **bounded**, exactly as `Field::Rounds` does in package A:
+explore `{min, 0.5, max}` and the boundary neighbours. The 10,000-step walk
+proved nothing the five boundary values did not, and neither does a
+pixel-by-pixel drag.
+
+#### F.3 — smoothness is the host's job, and newtui must not make it impossible
+
+Crush stays fluid under a resize drag by *deferring* the expensive work:
+`BeginResize()` marks the view as resizing so draws skip the full-height scan
+and reflow only visible items, then a settle timer warms the cache and clears
+the suppression. That belongs in the host — newtui owns no terminal and runs no
+timer.
+
+What newtui owes the host is the ability to do it: layout recomputation must be
+cheap (it is, once sizes are derived rather than nudged), and a resize must be
+able to say WHICH panels actually changed, so a host can reflow those and defer
+the rest. A layout that forces a full recompute on every pointer event has made
+crush's trick unavailable.
+
+**Acceptance:** an 80/20 split survives a shrink-and-restore with identical
+ratios; `splits()` returns one boundary per split with a path that
+`set_ratio_at` accepts; the explorer covers the bounded ratio vocabulary with
+zero violations and `exhausted: true`; and gilamonster-agent's cockpit runs on
+the crate with its existing layout tests passing (the package G discipline —
+if adoption hurts, the seam is wrong).
+
+**What this does not cover:** panel CONTENT under resize. F proves the geometry;
+whether a widget renders honestly at the width the geometry hands it is B's
+claim, and whether a real pty repaints correctly inside one is the real-PTY
+tier's. Do not let a green F imply either.
+
 ---
 
 ### Package G — adopt back into gila-monitor-tui (needs B)
@@ -249,6 +338,143 @@ rule.
 
 ---
 
+---
+
+### Package I — the mermaid widget (needs B)
+
+A diagram is display, so a mermaid renderer is a **widget**: mermaid source in,
+cells out, no interaction. It is the first widget whose data domain is a
+LANGUAGE rather than a series, which is why it is worth naming separately.
+
+Do not write a mermaid parser. `merman` (Latias94) is a headless Rust
+implementation — no Node, no Chromium — that parses to a typed semantic model,
+computes layout, and renders; `merman-ascii` is its terminal renderer, and its
+`render_model_report` returns text PLUS display metrics including width, height
+and **overflow state**. That last field is precisely what this crate's
+eight-columns-wide bar needs: a widget that can say "this did not fit" instead
+of silently clipping.
+
+The costs, stated up front:
+
+- It is `0.8.0-alpha.6`. The API will move, and a pre-1.0 dependency in the
+  default graph would be a liability.
+- `merman-ascii` is ~9.5 MB and ~336K SLoC — roughly two hundred times the
+  newtui core. It is not going anywhere near the leaf.
+
+So it lands as a **separate, non-default workspace member** (`newtui-mermaid`),
+the arrangement this repo already uses, and the core never learns it exists. A
+consumer that wants diagrams opts in; `cargo build` never compiles it.
+
+**Acceptance:** the widget renders the flowchart / sequence / state / class /
+ER families without panicking across the widget domain set (width narrower than
+the longest label, height 1, empty diagram, a parse error, a diagram far larger
+than the viewport), reports overflow rather than clipping silently, and
+`tests/leaf.rs` still passes with an empty closure at
+`--no-default-features`.
+
+---
+
+### Package J — the linked two-pane (needs F)
+
+Three things on the wish list are one component: markdown **edit/preview**, a
+diff's **old/new**, and a **commit preview**. Each is two surfaces over one
+subject with a mapping between them — scroll the left, the right follows the
+corresponding region; select a line, its counterpart highlights. Build it once
+and scrybe, mattatui, and code review all get it.
+
+The mapping is the component; the surfaces are not. It owns: which side has
+focus, the scroll offset of the primary side, the selected region, the link
+mode (locked / proportional / unlinked), and the correspondence table it was
+GIVEN. It does not own the text, does not parse markdown, and does not diff
+anything — a host hands it a correspondence (source line ranges to rendered
+regions, or old-line to new-line) as data, the way package A hands the settings
+panel its vocabulary.
+
+**Acceptance:** with a correspondence in hand, scrolling either side leaves the
+other on the corresponding region and never off the end; an unlinked mode moves
+one side only; a correspondence with gaps (a block that exists on one side
+only) still yields a defined position on both; explored over a bounded document
+of a handful of regions with `exhausted: true`.
+
+---
+
+### Package K — the tree (needs A)
+
+A folder explorer and a markdown outline are one component over different node
+sources. It is a state machine over keys — expand, collapse, move, select — and
+the node source is data the host supplies, lazily: the component asks for a
+node's children, it never reads a filesystem.
+
+It owns: the expansion set, the cursor, and the scroll window. Not the nodes.
+
+**Acceptance:** the cursor is always on a visible node (collapsing an ancestor
+of the cursor moves the cursor to that ancestor, never strands it off-screen or
+onto a hidden node); expand-then-collapse restores the prior visible set;
+a node source that returns no children never renders an expandable node;
+explored over a small fixed tree with `exhausted: true`.
+
+**The strandable cursor is the defect this package exists to catch** — it is
+the tree-shaped version of the Esc swallowed below the first row.
+
+---
+
+### Package L — the tabbed document container (needs F)
+
+Tabs of open documents, the centre of the PyCharm-shaped composition. A state
+machine over: which tab is active, tab order, and the dirty flag per tab. The
+documents are the host's.
+
+Closing the active tab must land focus somewhere defined, and the rule is the
+operator's expectation, not the implementation's convenience — the neighbour,
+not "index 0". (gilamonster-agent's cockpit shipped exactly that bug: a
+background pane exiting refocused `panes()[0]` and stole the operator's
+keyboard.)
+
+**Acceptance:** closing a tab focuses its neighbour; closing the last tab
+leaves a defined empty state rather than an out-of-range index; a dirty tab
+cannot be closed without the host being told; tab order survives
+activation changes; explored with `exhausted: true`.
+
+---
+
+### Package M — the changeset review surface (needs J, K)
+
+The reason the IDE composition exists: **a human reviewing an agent's changes
+before they land.** Everything else in the PyCharm shape is scaffolding around
+this.
+
+Three components, one subject:
+
+- **the changeset view** — changed files with a per-file state. A tree
+  (package K) over a change source instead of a directory source.
+- **the diff view** — old/new as a linked two-pane (package J) over a hunk
+  model: hunks with per-line add / remove / context.
+- **the stage editor** — the interactive half. Stage, unstage, and discard at
+  file, hunk, or line granularity, with per-file tri-state (staged / unstaged /
+  partially staged), plus the commit message form.
+
+**It never runs git.** This is package H's rule at full size: the component
+takes the changeset as data and returns INTENTS — `Stage(hunk)`,
+`Unstage(file)`, `Discard(range)`, `Commit(message)` — and the host performs
+them. A component that shells out is not explorable and not reusable, and a
+component that can `git checkout --` a file on its own is one bad transition
+away from destroying an operator's work.
+
+**Discard is not the inverse of unstage and must not share its key or its
+intent.** Unstage is recoverable; discard destroys the working-tree change.
+Give it its own intent so a host can confirm it.
+
+**Acceptance:** staging every hunk of a file leaves that file fully staged, and
+unstaging the last one returns it to unstaged; a file with both staged and
+unstaged hunks reports partial and never a boolean; discard emits an intent
+distinct from unstage; no transition emits an intent the host did not ask to be
+possible; the component performs no I/O (asserted the way `tests/leaf.rs`
+asserts the closure); explored over a small fixed changeset — two files, three
+hunks, one of them partially staged — with `exhausted: true`.
+
+**What this does not cover:** whether the host's git plumbing applies the
+intent correctly. That is the host's test, and it needs a real repository.
+
 ## Rules for anyone picking one up
 
 1. **The leaf invariant is not negotiable.** If a package seems to need a
@@ -261,6 +487,16 @@ rule.
    inside a component, it is a unit test, and it belongs with the component.
 5. **Say what a harness does not cover.** See the list above; repeat it in the
    PR rather than letting a green run imply more than it proved.
+6. **Interaction state is explorable; content is not.** `fingerprint()` defaults
+   to the view, so a component whose `view()` carried a document would make the
+   state space the space of all documents — unbounded, and the explorer would
+   report a sample forever. Split it: the COMPONENT owns cursor, scroll,
+   selection, expansion, active tab (bounded, comparable, explored); a WIDGET
+   owns rendering the content (`fn(data, width, height) -> cells`, tested over
+   data domains). A cursor moving through a document is a small state machine
+   over a large data domain, and those are two different tests. This is why
+   `View` is rows of plain data and must stay that way — widening it to carry
+   spans and buffers would put the document back inside the fingerprint.
 
 ## Provenance
 
