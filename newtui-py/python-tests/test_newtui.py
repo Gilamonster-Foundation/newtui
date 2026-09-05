@@ -94,7 +94,19 @@ class NewtuiTests(unittest.TestCase):
         class BrokenSelection(PythonDial):
             def view(self):
                 return newtui.View(
-                    "broken", [newtui.Row("level", str(self.level))], ""
+                    "broken",
+                    [
+                        newtui.Row(
+                            "level",
+                            str(self.level),
+                            selected=True,
+                            adjustable=True,
+                        ),
+                        newtui.Row(
+                            "also selected", "x", selected=True, adjustable=True
+                        ),
+                    ],
+                    "",
                 )
 
         violated = newtui.explore(
@@ -120,6 +132,22 @@ class NewtuiTests(unittest.TestCase):
         )
         self.assertEqual(incomplete.verdict.kind, "incomplete")
         self.assertIn("REPLAY DID NOT LAND", incomplete.verdict.reason)
+
+        class Empty(PythonDial):
+            def view(self):
+                return newtui.View("empty", [], "")
+
+        unreached = newtui.explore(
+            lambda: Empty(), newtui.properties.standard()
+        )
+        self.assertEqual(unreached.verdict.kind, "incomplete")
+        self.assertIn("PROPERTY NEVER APPLIED", unreached.verdict.reason)
+        self.assertTrue(
+            any(
+                prop.outcome == "not_applicable"
+                for prop in unreached.properties
+            )
+        )
 
     def test_handle_exception_becomes_a_reported_error(self):
         class Explodes(PythonDial):
