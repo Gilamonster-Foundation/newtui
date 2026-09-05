@@ -370,7 +370,7 @@ const MUTATIONS: &[Mutation] = &[
         file: "examples/demo.rs",
         from: "        frame.render_widget(Paragraph::new(lines).block(self.chart_block()), chart_area);",
         to: "        frame.render_widget(\n            Paragraph::new(vec![Line::raw(\" \".repeat(width))]).block(self.chart_block()),\n            chart_area,\n        );",
-        expect_red: "every_recorded_widget_has_visible_content",
+        expect_red: "every_recorded_demo_has_visible_content",
         cargo_args: &["--features", "ratatui", "--test", "demo_content"],
     },
     Mutation {
