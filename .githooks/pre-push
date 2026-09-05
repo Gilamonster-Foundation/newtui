@@ -45,6 +45,7 @@ else
   cargo test --no-default-features
   RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
   cargo test --test leaf
+  cargo llvm-cov --all-features --summary-only --fail-under-lines 80
   scripts/check-lean-proofs.sh
   scripts/check-model.sh
 fi
