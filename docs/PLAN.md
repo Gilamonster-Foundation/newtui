@@ -161,8 +161,19 @@ Donors, in `gilabot/gila-monitor-tui/src/ui/`:
 | bar line / labelled bar | `metrics.rs::draw_bar_line`, `draw_bar_with_label` |
 | core grid | `metrics.rs::draw_cpu_cores` |
 
-A widget is `fn(data, width, height) -> Vec<Row>` (or a cell grid) — **pure, no
-`Frame`**. Rendering is the optional `ratatui` adapter.
+A widget is `fn(data, width, height) -> lines` — **pure, no `Frame`**. Rendering
+is the optional `ratatui` adapter.
+
+**Not `Vec<Row>`.** This said `Row` until #5, and `Row` is
+`label / value / note / selected / adjustable` — a settings row. A sparkline has
+no label-value pair and cannot be selected, so three of those five fields would
+be permanently false, which is the definition of the wrong type. `src/view.rs`'s
+own doc states the rule this broke: *"A component that needs a genuinely
+different shape should say so rather than bend into this one."* The donor
+settles it — `build_net_butterfly_line` returns styled spans, a run of text plus
+a colour. The line type is #5's first deliverable, and the colour in it is a
+SEMANTIC tone, not an RGB value: `metrics.rs::value_color(ratio) -> Color` is
+already a meaning-to-colour map, and every host has its own palette.
 
 Widgets are tested over DATA DOMAINS the way components are tested over key
 sequences: empty series, one point, all-equal, all-zero, a single spike, values
@@ -248,6 +259,69 @@ rule is already how both panels work; the package is making it the crate's
 rule.
 
 ---
+
+---
+
+## The donor list above is a third of the real one
+
+Packages A and B name two donors because they are the two that are *ready* — a
+panel with no injected writers, and a widget family with a pure builder already
+factored out. They are not the extent of the duplication. The operator's scope
+is every custom TUI on this line: newt-agent, gilabot's `gila-monitor-tui`,
+herdr's panes and tabs, shea, gilamonster-agent, and crush.
+
+Counted across `newt-tui/src`, `gila-monitor-tui/src`, `herdr/src` and
+`gilamonster-agent/src` — **files that mention the shape**, which is a smell and
+not yet a duplication count; each one needs a read before it becomes a package:
+
+| Shape | newt-tui | gila-monitor | herdr | gilamonster-agent |
+|---|---|---|---|---|
+| theme / palette | 13 | – | 62 | 1 |
+| modal / popup | 27 | 1 | 36 | 1 |
+| scrollbar | – | 2 | 26 | 1 |
+| spinner | 24 | – | 4 | – |
+| status bar / line | 9 | 1 | 1 | 1 |
+| tab strip | 4 | 2 | 17 | 2 |
+| list cursor / clamp | 6 | – | 3 | 1 |
+| help overlay / key hints | – | 3 | 5 | – |
+
+Every row is in three or four surfaces. Three of them are worth naming now
+because they are what a component IS, not what it draws:
+
+- **The list cursor.** `newt-tui/src/list_cursor.rs` is 213 lines of clamping
+  and it is the thing `properties::selection_is_always_in_range` already checks
+  from the outside. Extracting it makes the property and the implementation the
+  same claim in two places, which is the point.
+- **The key table.** Four key tables gave four different answers about control
+  (newt-agent#2033, #2034). `Key` exists so there is one; a component that
+  brings its own is the defect re-entering.
+- **Theme.** The single biggest count, and the one thing a leaf crate must NOT
+  own concretely — see the tone rule under Package B. newtui names meanings;
+  hosts own colours. If newtui ever ships an RGB value the leaf argument is
+  over.
+
+Ordering: nothing here jumps A or B. B settles the tone question and A settles
+the vocabulary question, and every shape in that table needs one or both
+answered first. Extracting a popup before the seam it draws into exists is how
+you get a second seam.
+
+### crush is Go, and that is a real limit
+
+605 `.go` files, zero `.rs`. A Rust crate does not drop into it, and the honest
+answer is not a `cdylib` and cgo inside a bubbletea app — it is that crush
+consumes the **corpus**, not the code.
+
+That is not a consolation prize; it is the thing the properties were built to
+be. README: *"a property is a claim about observable behaviour, so it outlives
+the implementation that first satisfied it — and a reimplementation in another
+language, another framework, or another agent's codebase can be held to exactly
+the same set."* Package E makes the same argument for Python. What both need is
+the corpus **exportable as data** — `report.views` and the property set, written
+out in a form a non-Rust runner can read — which is one deliverable serving two
+consumers, and it should be built once, in E, rather than twice.
+
+So: crush is not a Package G-style adoption. It is a conformance target, and it
+does not gate the release.
 
 ## Rules for anyone picking one up
 
