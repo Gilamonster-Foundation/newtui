@@ -382,6 +382,44 @@ const MUTATIONS: &[Mutation] = &[
         expect_red: "TheCatalogIsCompiledAndRun",
         cargo_args: &["--doc"],
     },
+    Mutation {
+        defect: "a Python catalogue example asserts the wrong setting value, \
+                 while the prose remains otherwise intact",
+        file: "docs/CATALOG.md",
+        from: "assert panel.view().rows[0].value == \"steady\"",
+        to: "assert panel.view().rows[0].value == \"auto\"",
+        expect_red: "python_documentation_examples_run",
+        cargo_args: &["-p", "newtui-py", "--test", "bridge"],
+    },
+    Mutation {
+        defect: "a Python handle exception is discarded, allowing the report \
+                 to describe the walk without saying its component failed",
+        file: "newtui-py/src/explore.rs",
+        from: "            Err(error) => {\n                self.fail(\"handle\", &error);\n                Flow::Close(false)\n            }",
+        to: "            Err(_error) => Flow::Close(false),",
+        expect_red: "python_callback_exceptions_are_reported",
+        cargo_args: &["-p", "newtui-py", "--test", "bridge"],
+    },
+    Mutation {
+        defect: "the Python face calls an incomplete Rust report violated, so \
+                 a consumer cannot distinguish an invalid walk from a broken \
+                 property",
+        file: "newtui-py/src/explore.rs",
+        from: "            CoreVerdict::Incomplete { reason, .. } => Self {\n                kind: \"incomplete\",",
+        to: "            CoreVerdict::Incomplete { reason, .. } => Self {\n                kind: \"violated\",",
+        expect_red: "python_report_preserves_three_valued_verdict",
+        cargo_args: &["-p", "newtui-py", "--test", "bridge"],
+    },
+    Mutation {
+        defect: "a property whose domain the alphabet never reached is \
+                 labelled held in Python, erasing the evidence that makes a \
+                 completeness claim meaningful",
+        file: "newtui-py/src/explore.rs",
+        from: "        let outcome = if coverage.applicable == 0 {\n            \"not_applicable\"",
+        to: "        let outcome = if coverage.applicable == 0 {\n            \"held\"",
+        expect_red: "python_report_preserves_three_valued_verdict",
+        cargo_args: &["-p", "newtui-py", "--test", "bridge"],
+    },
 ];
 
 #[test]
@@ -546,7 +584,11 @@ fn every_registered_guard_is_pinned_by_a_mutation() {
 /// of the comparison, and a scan that read them would agree with itself.
 fn rust_sources(root: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
-    let mut pending: Vec<PathBuf> = ["src", "tests"].iter().map(|dir| root.join(dir)).collect();
+    let mut pending: Vec<PathBuf> = ["src", "tests", "newtui-py/src", "newtui-py/tests"]
+        .iter()
+        .map(|dir| root.join(dir))
+        .filter(|dir| dir.is_dir())
+        .collect();
 
     while let Some(dir) = pending.pop() {
         let entries = std::fs::read_dir(&dir)
@@ -730,6 +772,8 @@ fn copy_crate(root: &Path, dest: &Path) {
         "README.md",
         "docs/CATALOG.md",
         "examples/demo.rs",
+        "examples/python/README.md",
+        "newtui-py/Cargo.toml",
     ] {
         let parent = dest
             .join(file)

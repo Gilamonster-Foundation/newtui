@@ -1,11 +1,10 @@
 # newtui — TUI components you can drive in isolation.
 #
-# A workspace whose only member today is the core crate at the repo root.
-# Component crates land beside it as they are extracted, each a separate,
-# non-default member, so a plain `cargo build` never compiles a component's
-# rendering stack on the harness's account.
+# Auxiliary faces live beside the core as separate, non-default members, so a
+# plain `cargo build` never compiles PyO3 or a component's rendering stack on
+# the harness's account.
 [workspace]
-members = []
+members = ["newtui-py"]
 default-members = ["."]
 
 [package]
