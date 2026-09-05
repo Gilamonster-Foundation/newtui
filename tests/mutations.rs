@@ -259,6 +259,23 @@ const MUTATIONS: &[Mutation] = &[
         expect_red: "tests::a_diverged_departure_judges_nothing",
         cargo_args: &[],
     },
+    Mutation {
+        defect: "the settings panel turns Escape into an accepted close",
+        file: "src/components/settings_panel.rs",
+        from: "Key::Esc | Key::Char('q') => return self.finish(false, false),",
+        to: "Key::Esc | Key::Char('q') => return self.finish(true, false),",
+        expect_red: "bounded_settings_panel_is_exhaustively_clean",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "the catalogue omits the settings panel while the public \
+                 export remains",
+        file: "docs/CATALOG.md",
+        from: "<!-- component: settings_panel -->",
+        to: "<!-- omitted component: settings_panel -->",
+        expect_red: "catalog_lists_every_component_export",
+        cargo_args: &[],
+    },
 ];
 
 #[test]
@@ -601,14 +618,22 @@ fn declared_item(line: &str) -> Option<&str> {
 /// else. Explicitly not `target/` (recursive, enormous) and not this file (a
 /// mutant that ran its own mutation runner would nest without end).
 fn copy_crate(root: &Path, dest: &Path) {
-    std::fs::create_dir_all(dest.join("src")).expect("the mutant arena is writable");
-    std::fs::create_dir_all(dest.join("tests")).expect("the mutant arena is writable");
-    for file in ["Cargo.toml", "Cargo.lock", "README.md", "tests/leaf.rs"] {
+    for file in ["Cargo.toml", "Cargo.lock", "README.md", "docs/CATALOG.md"] {
+        let parent = dest
+            .join(file)
+            .parent()
+            .expect("every copied file has a parent")
+            .to_path_buf();
+        std::fs::create_dir_all(parent).expect("the mutant arena is writable");
         std::fs::copy(root.join(file), dest.join(file)).expect("crate file is copyable");
     }
-    for entry in std::fs::read_dir(root.join("src")).expect("src/ is readable") {
-        let entry = entry.expect("a src/ entry");
-        std::fs::copy(entry.path(), dest.join("src").join(entry.file_name()))
-            .expect("a source file is copyable");
+    for source in rust_sources(root) {
+        let relative = source
+            .strip_prefix(root)
+            .expect("a discovered source belongs to this crate");
+        let target = dest.join(relative);
+        std::fs::create_dir_all(target.parent().expect("a source has a parent"))
+            .expect("the mutant arena is writable");
+        std::fs::copy(source, target).expect("a source file is copyable");
     }
 }
