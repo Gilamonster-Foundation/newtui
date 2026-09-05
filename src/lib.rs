@@ -4,10 +4,8 @@
 //!
 //! - **Components** are interactive — a state machine over keys. A settings
 //!   panel, a chooser, a form, a pager.
-//! - **Widgets** are display — a pure function from data to cells. A
-//!   sparkline, a butterfly meter, a heat bar, a gauge. (Landing next; the
-//!   interaction seam came first because it is the one with a correctness
-//!   story that a test can hold.)
+//! - **Widgets** are display — a pure function from data to styled text. A
+//!   sparkline, a butterfly meter, a heat bar, a gauge.
 //!
 //! # The problem this exists for
 //!
@@ -43,6 +41,7 @@ mod explore;
 mod key;
 mod property;
 mod view;
+mod widget;
 
 pub use component::{Component, Fingerprint, Flow};
 pub use explore::{
@@ -51,6 +50,12 @@ pub use explore::{
 pub use key::Key;
 pub use property::{properties, Named, Observation, Property, PropertyOutcome};
 pub use view::{Row, View};
+#[cfg(feature = "ratatui")]
+pub use widget::ratatui_lines;
+pub use widget::{
+    bar, butterfly, core_grid, gauge, heat_meter, sparkline, CoreSeries, Run, SparkDirection, Tone,
+    WidgetLine, WidgetOutput, WidgetOutputError,
+};
 
 /// The README's example is compiled and RUN, not read and believed.
 ///
