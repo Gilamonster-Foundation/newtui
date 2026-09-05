@@ -1,0 +1,15 @@
+[build-system]
+requires = ["maturin>=1.9.4,<2"]
+build-backend = "maturin"
+
+[project]
+name = "newtui"
+version = "0.1.0"
+description = "Python bindings for newtui's isolated terminal UI components"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+
+[tool.maturin]
+manifest-path = "Cargo.toml"
+python-source = "python"
+module-name = "newtui._native"
