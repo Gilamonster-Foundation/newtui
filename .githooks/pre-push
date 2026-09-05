@@ -41,11 +41,18 @@ else
   cargo fmt -- --check
   cargo clippy --all-targets --all-features -- -D warnings
   cargo clippy --all-targets --no-default-features -- -D warnings
+  cargo clippy -p newtui-py --all-targets -- -D warnings
   cargo test --all-features
   cargo test --no-default-features
+  cargo test -p newtui-py
   RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
+  RUSTDOCFLAGS="-D warnings" cargo doc -p newtui-py --no-deps
   cargo test --test leaf
   cargo llvm-cov --all-features --summary-only --fail-under-lines 80
+  cargo llvm-cov -p newtui-py --summary-only --fail-under-lines 80 \
+    --ignore-filename-regex 'newtui-py/tests/'
+  scripts/check-python.sh
+  cargo test --test mutations -- --nocapture
   scripts/check-lean-proofs.sh
   scripts/check-model.sh
 fi
