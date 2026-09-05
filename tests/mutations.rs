@@ -286,6 +286,15 @@ const MUTATIONS: &[Mutation] = &[
         expect_red: "catalog_lists_every_component_export",
         cargo_args: &[],
     },
+    Mutation {
+        defect: "a catalogue snippet calls an API that does not exist, while \
+                 the prose inventory remains otherwise intact",
+        file: "docs/CATALOG.md",
+        from: ".explore(|| SettingsPanel::new(seed.clone()), &refs);",
+        to: ".explore_missing(|| SettingsPanel::new(seed.clone()), &refs);",
+        expect_red: "TheCatalogIsCompiledAndRun",
+        cargo_args: &["--doc"],
+    },
 ];
 
 #[test]
