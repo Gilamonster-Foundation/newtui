@@ -358,6 +358,22 @@ const MUTATIONS: &[Mutation] = &[
         cargo_args: &[],
     },
     Mutation {
+        defect: "a catalogue entry names a demo recording that does not exist",
+        file: "docs/CATALOG.md",
+        from: "<!-- demo: gauge = gauge -->",
+        to: "<!-- demo: gauge = missing-gauge -->",
+        expect_red: "catalog_lists_every_component_export",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "the recorder host draws the widget's correctly sized interior as blank space",
+        file: "examples/demo.rs",
+        from: "        frame.render_widget(Paragraph::new(lines).block(self.chart_block()), chart_area);",
+        to: "        frame.render_widget(\n            Paragraph::new(vec![Line::raw(\" \".repeat(width))]).block(self.chart_block()),\n            chart_area,\n        );",
+        expect_red: "every_recorded_demo_has_visible_content",
+        cargo_args: &["--features", "ratatui", "--test", "demo_content"],
+    },
+    Mutation {
         defect: "a catalogue snippet calls an API that does not exist, while \
                  the prose inventory remains otherwise intact",
         file: "docs/CATALOG.md",
@@ -708,7 +724,13 @@ fn declared_item(line: &str) -> Option<&str> {
 /// else. Explicitly not `target/` (recursive, enormous) and not this file (a
 /// mutant that ran its own mutation runner would nest without end).
 fn copy_crate(root: &Path, dest: &Path) {
-    for file in ["Cargo.toml", "Cargo.lock", "README.md", "docs/CATALOG.md"] {
+    for file in [
+        "Cargo.toml",
+        "Cargo.lock",
+        "README.md",
+        "docs/CATALOG.md",
+        "examples/demo.rs",
+    ] {
         let parent = dest
             .join(file)
             .parent()

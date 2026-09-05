@@ -70,3 +70,10 @@ serde_json = "1"
 name = "mutations"
 path = "tests/mutations.rs"
 test = false
+
+# The recorder host is not part of the library surface. Requiring the optional
+# renderer keeps headless builds from compiling a terminal solely for demos.
+[[example]]
+name = "demo"
+path = "examples/demo.rs"
+required-features = ["ratatui"]

@@ -119,12 +119,21 @@ tla-mutations:
 # Everything in the formal layer. Not part of `check` — see the header.
 formal: no-sorry lean lean-mutations tla tla-mutations model
 
-# Regenerate every demo GIF from its tape (needs `vhs`).
+# Regenerate both animated formats from each tape (needs `vhs` and `ffmpeg`).
 demos:
     #!/usr/bin/env bash
     set -euo pipefail
-    for tape in demos/*.tape; do vhs "$tape"; done
+    cargo build --quiet --example demo --features ratatui
+    for tape in demos/*.tape; do
+        vhs "$tape"
+        gif="${tape%.tape}.gif"
+        # APNG derives from the GIF recording, so the two formats cannot show
+        # different component behaviour.
+        ffmpeg -y -i "$gif" -plays 0 -f apng "${tape%.tape}.png"
+    done
 
-# Regenerate one demo.
+# Regenerate both formats for one demo.
 demo name:
+    cargo build --quiet --example demo --features ratatui
     vhs demos/{{name}}.tape
+    ffmpeg -y -i demos/{{name}}.gif -plays 0 -f apng demos/{{name}}.png

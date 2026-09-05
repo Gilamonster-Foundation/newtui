@@ -7,6 +7,9 @@ that a reimplementation must satisfy.
 <!-- component: settings_panel -->
 ## `settings_panel`
 
+<!-- demo: settings_panel = settings -->
+Demo: [tape](../demos/settings.tape) · [GIF](../demos/settings.gif) · [animated PNG](../demos/settings.png)
+
 A pure settings state machine with choice dials, bounded integer dials, a model
 dial, and a door into the host's backend chooser.
 
@@ -69,6 +72,9 @@ silently drop or mismeasure it.
 <!-- widget: sparkline -->
 ## `sparkline`
 
+<!-- demo: sparkline = sparkline -->
+Demo: [tape](../demos/sparkline.tape) · [GIF](../demos/sparkline.gif) · [animated PNG](../demos/sparkline.png)
+
 A multi-row history graph over a caller-declared maximum. Empty and non-finite
 samples render as empty signal; `SparkDirection` chooses the growing edge.
 
@@ -79,6 +85,9 @@ assert!(graph.validate(8, 3).is_ok());
 
 <!-- widget: butterfly -->
 ## `butterfly`
+
+<!-- demo: butterfly = butterfly -->
+Demo: [tape](../demos/butterfly.tape) · [GIF](../demos/butterfly.gif) · [animated PNG](../demos/butterfly.png)
 
 Two current values grow away from a stable centre marker. The host supplies
 both labels and the shared maximum.
@@ -91,6 +100,9 @@ assert!(net.validate(16, 1).is_ok());
 <!-- widget: heat_meter -->
 ## `heat_meter`
 
+<!-- demo: heat_meter = heat_meter -->
+Demo: [tape](../demos/heat_meter.tape) · [GIF](../demos/heat_meter.gif) · [animated PNG](../demos/heat_meter.png)
+
 A current percentage with optional labels around a positional heat ramp.
 
 ```rust
@@ -100,6 +112,9 @@ assert!(disk.validate(16, 1).is_ok());
 
 <!-- widget: gauge -->
 ## `gauge`
+
+<!-- demo: gauge = gauge -->
+Demo: [tape](../demos/gauge.tape) · [GIF](../demos/gauge.gif) · [animated PNG](../demos/gauge.png)
 
 A current value against a maximum. Wide output shows the caption; narrow
 output preserves the gauge signal and clips it to the rectangle.
@@ -112,6 +127,9 @@ assert!(daily.validate(20, 1).is_ok());
 <!-- widget: bar -->
 ## `bar`
 
+<!-- demo: bar = bar -->
+Demo: [tape](../demos/bar.tape) · [GIF](../demos/bar.gif) · [animated PNG](../demos/bar.png)
+
 A host-formatted value label beside a bar. Units remain host vocabulary.
 
 ```rust
@@ -121,6 +139,9 @@ assert!(cpu.validate(16, 1).is_ok());
 
 <!-- widget: core_grid -->
 ## `core_grid`
+
+<!-- demo: core_grid = core_grid -->
+Demo: [tape](../demos/core_grid.tape) · [GIF](../demos/core_grid.gif) · [animated PNG](../demos/core_grid.png)
 
 One compact current-value and history row per visible core. Missing cores fill
 their rows with blanks, so the result always occupies the requested height.
