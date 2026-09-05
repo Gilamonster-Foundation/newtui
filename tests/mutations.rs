@@ -333,6 +333,15 @@ const MUTATIONS: &[Mutation] = &[
         cargo_args: &[],
     },
     Mutation {
+        defect: "the catalogue omits a widget while its public builder export \
+                 remains",
+        file: "docs/CATALOG.md",
+        from: "<!-- widget: sparkline -->",
+        to: "<!-- omitted widget: sparkline -->",
+        expect_red: "catalog_lists_every_component_export",
+        cargo_args: &[],
+    },
+    Mutation {
         defect: "a catalogue snippet calls an API that does not exist, while \
                  the prose inventory remains otherwise intact",
         file: "docs/CATALOG.md",
