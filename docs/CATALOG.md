@@ -60,6 +60,12 @@ runs carrying semantic tones. Widths are display columns. Labels and values
 that do not fit are clipped, including at widths narrower than the label; zero
 width or height returns the corresponding empty rectangle.
 
+Labels and caller-formatted values use the same deliberately closed glyph
+alphabet as chart data. Any character outside it is replaced with `?`: this is
+lossy, but visible in production and still exactly one display column. Hosts
+that need the original spelling retain it in their own data; widgets never
+silently drop or mismeasure it.
+
 <!-- widget: sparkline -->
 ## `sparkline`
 
