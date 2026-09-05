@@ -38,6 +38,7 @@
 #![allow(clippy::module_name_repetitions)]
 
 mod component;
+pub mod components;
 mod explore;
 mod key;
 mod property;
