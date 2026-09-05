@@ -262,9 +262,19 @@ const MUTATIONS: &[Mutation] = &[
     Mutation {
         defect: "the settings panel turns Escape into an accepted close",
         file: "src/components/settings_panel.rs",
-        from: "Key::Esc | Key::Char('q') => return self.finish(false, false),",
-        to: "Key::Esc | Key::Char('q') => return self.finish(true, false),",
+        from: "Key::Esc => return self.finish(false, false),",
+        to: "Key::Esc => return self.finish(true, false),",
         expect_red: "bounded_settings_panel_is_exhaustively_clean",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "an accepted intent is installed while the settings panel \
+                 remains open, so the default view fingerprint hides state \
+                 that can receive another key",
+        file: "src/components/settings_panel.rs",
+        from: "        Flow::Close(true)\n    }\n}\n\nimpl Component for SettingsPanel",
+        to: "        Flow::Stay\n    }\n}\n\nimpl Component for SettingsPanel",
+        expect_red: "every_open_state_has_no_intent_hidden_from_view",
         cargo_args: &[],
     },
     Mutation {
