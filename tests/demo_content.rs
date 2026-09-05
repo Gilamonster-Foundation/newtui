@@ -6,8 +6,8 @@
 #[path = "../examples/demo.rs"]
 mod demo;
 
-// GUARD: every_recorded_widget_has_visible_content — this is a guard; tests/mutations.rs must show it red.
+// GUARD: every_recorded_demo_has_visible_content — this is a guard; tests/mutations.rs must show it red.
 #[test]
-fn every_recorded_widget_has_visible_content() {
-    demo::assert_recorded_widgets_render_content();
+fn every_recorded_demo_has_visible_content() {
+    demo::assert_recorded_demos_render_content();
 }
