@@ -78,6 +78,21 @@ jobs:
       # goes RED. Without this job, every mutation table in this repo is prose.
       - run: cargo test --test mutations -- --nocapture
 
+  coverage:
+    name: Coverage floor (80% lines)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: Swatinem/rust-cache@v2
+      # A floor, not a target — see the justfile recipe for why 80 and why
+      # --all-features only. Its own job so a drop names itself instead of
+      # hiding inside a test failure.
+      - run: cargo llvm-cov --all-features --summary-only --fail-under-lines 80
+
   leaf:
     name: Leaf invariant (empty runtime closure)
     runs-on: ubuntu-latest

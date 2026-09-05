@@ -18,7 +18,7 @@
 #   intentionally NONE`. Run them locally with `just formal`.
 
 # Format, lint, test and document — the whole gate.
-check: fmt clippy test doc leaf rust-mutations no-sorry model
+check: fmt clippy test doc leaf coverage rust-mutations no-sorry model
 
 # Verify formatting (does not modify files).
 fmt:
@@ -44,6 +44,20 @@ doc:
 # The leaf invariant — the runtime closure stays empty. See tests/leaf.rs.
 leaf:
     cargo test --test leaf
+
+# The coverage floor. IN `check`, and so in the push hook, because the
+# instrumented build takes 13 seconds on this crate — the "disproportionate in
+# every developer's pre-push" argument the hook header makes about Lean and a
+# JVM does not reach this far, and a floor nobody runs locally is a floor that
+# is discovered in CI.
+#
+# 80% is a FLOOR, not a target. main sits near 94% and CRAFT-08 asks for
+# near-total on the production view; the gate exists to catch a cliff, not to
+# bless the fourteen points between. --all-features and not both settings:
+# the ratatui path is strictly more code, and instrumenting the crate twice to
+# re-measure the same core would double the cost of the gate for nothing.
+coverage:
+    cargo llvm-cov --all-features --summary-only --fail-under-lines 80
 
 # Every Rust guard has a defect it provably catches. Named target because
 # tests/mutations.rs is `test = false` — it builds a mutated copy of the crate
