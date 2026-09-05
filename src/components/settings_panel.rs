@@ -331,6 +331,9 @@ enum PanelRow {
 pub struct SettingsPanel {
     rows: Vec<PanelRow>,
     selected: usize,
+    /// Deliberately absent from the view-derived fingerprint: only `finish`
+    /// writes this field, and every `finish` path closes the component. No two
+    /// OPEN states can therefore differ only by an intent the view hides.
     intent: Option<SettingsIntent>,
 }
 
@@ -424,7 +427,7 @@ impl Component for SettingsPanel {
                     matches!(self.rows.get(self.selected), Some(PanelRow::Backend(_)));
                 return self.finish(true, open_backends);
             }
-            Key::Esc | Key::Char('q') => return self.finish(false, false),
+            Key::Esc => return self.finish(false, false),
             _ => {}
         }
         Flow::Stay
