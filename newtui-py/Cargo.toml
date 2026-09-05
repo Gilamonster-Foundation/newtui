@@ -1,0 +1,15 @@
+[package]
+name = "newtui-py"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+name = "_native"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+newtui-core = { package = "newtui", path = ".." }
+pyo3 = "0.29.2"
