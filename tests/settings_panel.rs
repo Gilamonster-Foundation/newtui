@@ -84,9 +84,64 @@ fn cancellation_never_returns_an_effect_intent() {
     assert_eq!(panel.intent(), None);
 
     let mut q = SettingsPanel::new(bounded_seed());
-    assert_eq!(q.handle(Key::Char('q')), Flow::Close(false));
+    assert_eq!(
+        q.handle(Key::Char('q')),
+        Flow::Stay,
+        "a printable character is data until the host maps it to an action"
+    );
     let mut ctrl_q = SettingsPanel::new(bounded_seed());
     assert_eq!(ctrl_q.handle(Key::Ctrl('q')), Flow::Stay);
+}
+
+/// `intent` is deliberately absent from the view-derived fingerprint. Walk
+/// the full states themselves, without using that fingerprint to deduplicate,
+/// and prove the reason this is sound: no state that remains open has an
+/// intent hidden from its view.
+// GUARD: every_open_state_has_no_intent_hidden_from_view — this is a guard; tests/mutations.rs must show it red.
+#[test]
+fn every_open_state_has_no_intent_hidden_from_view() {
+    let mut states = vec![SettingsPanel::new(bounded_seed())];
+    let mut at = 0;
+
+    while at < states.len() {
+        let state = states[at].clone();
+        at += 1;
+        for key in Key::navigation() {
+            let mut reached = state.clone();
+            let flow = reached.handle(key);
+            if flow == Flow::Stay {
+                assert_eq!(
+                    reached.intent(),
+                    None,
+                    "{key} left the component open with state its view cannot show"
+                );
+                if !states.contains(&reached) {
+                    states.push(reached);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn an_empty_settings_list_is_still_exhaustively_clean() {
+    let seed = SettingsSeed::new(
+        Vec::new(),
+        Model::new(
+            "qwen",
+            Some(vec![
+                Choice::new("qwen", "active"),
+                Choice::new("nemotron", "served"),
+            ]),
+        ),
+        Backend::new(None::<String>),
+    );
+    let owned = acceptance(&seed);
+    let properties: Vec<&dyn Property> = owned.iter().map(AsRef::as_ref).collect();
+    let report =
+        Explorer::new(Key::navigation()).explore(|| SettingsPanel::new(seed.clone()), &properties);
+
+    assert!(report.is_clean(), "{report}");
 }
 
 #[test]
