@@ -67,6 +67,22 @@ const MUTATIONS: &[Mutation] = &[
         cargo_args: &[],
     },
     Mutation {
+        defect: "gauge ignores its numeric inputs and always renders half full",
+        file: "src/widget/gauge.rs",
+        from: "    let level = ratio(value, maximum);",
+        to: "    let level = 0.5;\n    let _ = (value, maximum);",
+        expect_red: "gauge_fill_is_monotone_in_value",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "sparkline keeps the oldest visible samples instead of the newest",
+        file: "src/widget/sparkline.rs",
+        from: "    let data: Vec<f64> = values.iter().rev().take(width).rev().copied().collect();",
+        to: "    let data: Vec<f64> = values.iter().take(width).copied().collect();",
+        expect_red: "sparkline_preserves_sample_order_and_right_alignment",
+        cargo_args: &[],
+    },
+    Mutation {
         defect: "a real widget returns no lines, making an `all`-based width \
                  assertion vacuously green unless the rectangle's height is \
                  part of the same domain guard",
