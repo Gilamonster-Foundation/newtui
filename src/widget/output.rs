@@ -150,6 +150,14 @@ pub(crate) fn is_declared_glyph(glyph: char) -> bool {
         || matches!(glyph, '\u{2591}' | '\u{2592}' | '\u{2588}' | '\u{00b7}')
 }
 
+pub(crate) fn declared_glyph_or_replacement(glyph: char) -> char {
+    if is_declared_glyph(glyph) {
+        glyph
+    } else {
+        '?'
+    }
+}
+
 /// Convert widget data without fixing a palette in the reusable crate.
 #[cfg(feature = "ratatui")]
 pub fn ratatui_lines(
