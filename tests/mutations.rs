@@ -58,6 +58,15 @@ struct Mutation {
 /// several, when there is more than one way to break the thing it holds.
 const MUTATIONS: &[Mutation] = &[
     Mutation {
+        defect: "an undeclared host label glyph disappears into whitespace \
+                 instead of leaving a visible, single-column replacement",
+        file: "src/widget/output.rs",
+        from: "    } else {\n        '?'\n    }",
+        to: "    } else {\n        ' '\n    }",
+        expect_red: "undeclared_label_glyphs_are_visibly_replaced",
+        cargo_args: &[],
+    },
+    Mutation {
         defect: "a real widget returns no lines, making an `all`-based width \
                  assertion vacuously green unless the rectangle's height is \
                  part of the same domain guard",
