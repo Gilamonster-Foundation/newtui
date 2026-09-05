@@ -1,7 +1,7 @@
 Output demos/settings.gif
 
 Set Shell "bash"
-Set Width 700
+Set Width 780
 Set Height 420
 Set FontSize 18
 Set Theme "Catppuccin Mocha"
