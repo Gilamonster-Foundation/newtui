@@ -147,6 +147,12 @@ impl SettingsDemo {
     }
 
     fn render(&self, frame: &mut Frame<'_>) {
+        let lines = self.lines();
+        let area = self.panel_area(frame.area(), lines.len());
+        frame.render_widget(Paragraph::new(lines).block(self.panel_block()), area);
+    }
+
+    fn lines(&self) -> Vec<Line<'static>> {
         let view = self.panel.view();
         let mut lines = view_lines(&view);
         if let Some(outcome) = &self.outcome {
@@ -162,12 +168,16 @@ impl SettingsDemo {
                 Style::default().fg(Color::DarkGray),
             ));
         }
-        let height = u16::try_from(lines.len().saturating_add(2)).unwrap_or(u16::MAX);
-        let area = centered(frame.area(), 68, height);
-        frame.render_widget(
-            Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title(" settings ")),
-            area,
-        );
+        lines
+    }
+
+    fn panel_area(&self, frame_area: Rect, line_count: usize) -> Rect {
+        let height = u16::try_from(line_count.saturating_add(2)).unwrap_or(u16::MAX);
+        centered(frame_area, 68, height)
+    }
+
+    fn panel_block(&self) -> Block<'static> {
+        Block::default().borders(Borders::ALL).title(" settings ")
     }
 }
 
@@ -345,7 +355,7 @@ impl WidgetDemo {
 }
 
 #[cfg(test)]
-pub(crate) fn assert_recorded_widgets_render_content() {
+pub(crate) fn assert_recorded_demos_render_content() {
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
@@ -389,15 +399,35 @@ pub(crate) fn assert_recorded_widgets_render_content() {
                 "`{name}` loses content rows inside its border"
             );
 
-            let buffer = terminal.backend().buffer();
-            let has_content = (inner.y..inner.bottom())
-                .any(|y| (inner.x..inner.right()).any(|x| buffer[(x, y)].symbol() != " "));
+            let has_content = area_has_content(terminal.backend().buffer(), inner);
             assert!(
                 has_content,
                 "`{name}` at requested width {width} renders a blank interior"
             );
         }
     }
+
+    let Some(Demo::Settings(settings)) = Demo::named("settings") else {
+        panic!("the `settings` recording names its component demo");
+    };
+    let frame_area = Rect::new(0, 0, 80, 20);
+    let backend = TestBackend::new(frame_area.width, frame_area.height);
+    let mut terminal = Terminal::new(backend).expect("the test terminal is available");
+    terminal
+        .draw(|frame| settings.render(frame))
+        .expect("the settings demo renders into its recorder-sized terminal");
+    let inner = settings
+        .panel_block()
+        .inner(settings.panel_area(frame_area, settings.lines().len()));
+    assert!(
+        area_has_content(terminal.backend().buffer(), inner),
+        "`settings` renders a blank interior"
+    );
+}
+
+#[cfg(test)]
+fn area_has_content(buffer: &ratatui::buffer::Buffer, area: Rect) -> bool {
+    (area.y..area.bottom()).any(|y| (area.x..area.right()).any(|x| buffer[(x, y)].symbol() != " "))
 }
 
 fn tone_style(tone: Tone) -> Style {
