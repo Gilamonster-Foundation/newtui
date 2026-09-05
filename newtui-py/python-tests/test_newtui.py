@@ -80,9 +80,46 @@ class NewtuiTests(unittest.TestCase):
 
         self.assertTrue(report.exhausted)
         self.assertTrue(report.is_clean, str(report))
+        self.assertEqual(report.verdict.kind, "clean")
+        self.assertIsNone(report.verdict.reason)
         self.assertEqual(report.states, 4)
         self.assertGreater(report.transitions, 0)
         self.assertEqual(report.errors, [])
+        self.assertTrue(report.properties)
+        self.assertTrue(
+            all(prop.outcome == "held" for prop in report.properties)
+        )
+
+    def test_verdict_distinguishes_violation_from_incomplete(self):
+        class BrokenSelection(PythonDial):
+            def view(self):
+                return newtui.View(
+                    "broken", [newtui.Row("level", str(self.level))], ""
+                )
+
+        violated = newtui.explore(
+            lambda: BrokenSelection(), newtui.properties.standard()
+        )
+        self.assertEqual(violated.verdict.kind, "violated")
+        self.assertIsNone(violated.verdict.reason)
+        self.assertTrue(
+            any(prop.outcome == "violated" for prop in violated.properties)
+        )
+
+        builds = 0
+
+        def drifting_factory():
+            nonlocal builds
+            component = PythonDial()
+            component.level = builds
+            builds += 1
+            return component
+
+        incomplete = newtui.explore(
+            drifting_factory, newtui.properties.standard()
+        )
+        self.assertEqual(incomplete.verdict.kind, "incomplete")
+        self.assertIn("REPLAY DID NOT LAND", incomplete.verdict.reason)
 
     def test_handle_exception_becomes_a_reported_error(self):
         class Explodes(PythonDial):
@@ -94,6 +131,8 @@ class NewtuiTests(unittest.TestCase):
         )
 
         self.assertFalse(report.is_clean)
+        self.assertEqual(report.verdict.kind, "incomplete")
+        self.assertIn("PYTHON CALLBACK FAILED", report.verdict.reason)
         self.assertEqual(report.errors[0].method, "handle")
         self.assertIn("RuntimeError: dial broke", report.errors[0].detail)
         self.assertIn("Python callback errors", str(report))
