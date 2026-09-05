@@ -400,6 +400,26 @@ const MUTATIONS: &[Mutation] = &[
         expect_red: "python_callback_exceptions_are_reported",
         cargo_args: &["-p", "newtui-py", "--test", "bridge"],
     },
+    Mutation {
+        defect: "the Python face calls an incomplete Rust report violated, so \
+                 a consumer cannot distinguish an invalid walk from a broken \
+                 property",
+        file: "newtui-py/src/explore.rs",
+        from: "            CoreVerdict::Incomplete { reason, .. } => Self {\n                kind: \"incomplete\",",
+        to: "            CoreVerdict::Incomplete { reason, .. } => Self {\n                kind: \"violated\",",
+        expect_red: "python_report_preserves_three_valued_verdict",
+        cargo_args: &["-p", "newtui-py", "--test", "bridge"],
+    },
+    Mutation {
+        defect: "a property whose domain the alphabet never reached is \
+                 labelled held in Python, erasing the evidence that makes a \
+                 completeness claim meaningful",
+        file: "newtui-py/src/explore.rs",
+        from: "        let outcome = if coverage.applicable == 0 {\n            \"not_applicable\"",
+        to: "        let outcome = if coverage.applicable == 0 {\n            \"held\"",
+        expect_red: "python_report_preserves_three_valued_verdict",
+        cargo_args: &["-p", "newtui-py", "--test", "bridge"],
+    },
 ];
 
 #[test]
