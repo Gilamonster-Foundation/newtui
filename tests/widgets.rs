@@ -133,6 +133,24 @@ fn narrow_widgets_clip_labels_instead_of_panicking() {
     }
 }
 
+// GUARD: undeclared_label_glyphs_are_visibly_replaced — this is a guard; tests/mutations.rs must show it red.
+#[test]
+fn undeclared_label_glyphs_are_visibly_replaced() {
+    for output in [
+        gauge("caf\u{e9}", 5.0, 10.0, 20, 1),
+        bar("caf\u{e9}", 5.0, 10.0, "\u{b5}s", 20, 1),
+        heat_meter("caf\u{e9}", 50.0, "\u{b1}3", 20, 1),
+        butterfly(5.0, 5.0, 10.0, "caf\u{e9}", "\u{2013}rx", 20, 1),
+    ] {
+        let text = output.lines[0].text();
+        assert!(
+            text.contains('?'),
+            "an undeclared label glyph vanished without a visible replacement: {text:?}"
+        );
+        assert_shape(&output, 20, 1);
+    }
+}
+
 #[cfg(feature = "ratatui")]
 #[test]
 fn ratatui_conversion_asks_the_host_for_every_style() {
