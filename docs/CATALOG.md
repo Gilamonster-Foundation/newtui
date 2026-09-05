@@ -58,6 +58,31 @@ let report = Explorer::new(Key::navigation())
 assert!(report.is_clean(), "{report}");
 ```
 
+The same component is available as plain Python objects; the host still owns
+the vocabulary, rendering, persistence, and terminal decoding.
+
+```python
+import newtui
+
+panel = newtui.settings_panel(
+    settings=[
+        newtui.Setting.choice(
+            "tenacity",
+            "tenacity",
+            "auto",
+            [
+                newtui.Choice("auto", "inherit"),
+                newtui.Choice("steady", "persist"),
+            ],
+        )
+    ],
+    backend="sol",
+    models=["qwen", "nemotron"],
+)
+panel.handle(newtui.Key.RIGHT)
+assert panel.view().rows[0].value == "steady"
+```
+
 Every widget builder returns renderer-neutral `WidgetOutput`: lines of text
 runs carrying semantic tones. Widths are display columns. Labels and values
 that do not fit are clipped, including at widths narrower than the label; zero
@@ -156,3 +181,22 @@ let cores = [newtui::CoreSeries {
 let grid = newtui::core_grid(&cores, 16, 4);
 assert!(grid.validate(16, 4).is_ok());
 ```
+
+## Python exploration cost
+
+The Rust explorer can judge a component implemented in Python. It holds the
+GIL throughout the walk: replay constructs a fresh Python component and every
+`handle`, `view`, and optional `fingerprint` call returns to Python, so there is
+no sound `allow_threads` boundary to take.
+
+The reproducible benchmark in `newtui-py/benchmarks/gil_walk.py` explores a
+real Python mixer with four five-position dials. A release build on CPython
+3.12.3, x86-64, an Intel Core i7-11700B measured 2,500 states and 15,000
+transitions in a median 0.313794 seconds across five walks: 20.920 microseconds
+per transition. That number includes factory replay, Python callbacks, Rust
+property checks, and report construction; it is the cost callers actually pay,
+not an isolated crossing microbenchmark.
+
+A Python callback exception becomes a structured `report.errors` entry with
+the callback name and key path. The affected branch closes, `report.is_clean`
+is false, and no exception or panic crosses the FFI boundary.
