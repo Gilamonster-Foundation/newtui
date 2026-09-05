@@ -161,8 +161,10 @@ Donors, in `gilabot/gila-monitor-tui/src/ui/`:
 | bar line / labelled bar | `metrics.rs::draw_bar_line`, `draw_bar_with_label` |
 | core grid | `metrics.rs::draw_cpu_cores` |
 
-A widget is `fn(data, width, height) -> lines` — **pure, no `Frame`**. Rendering
-is the optional `ratatui` adapter.
+A widget is `fn(data, width, height) -> WidgetOutput` — a rectangle of
+`WidgetLine`s composed from text `Run`s carrying a semantic `Tone`. It is
+**pure, with no `Frame`**. Rendering is the optional `ratatui` adapter, and the
+host supplies the `Tone -> Style` map so it keeps ownership of its palette.
 
 **Not `Vec<Row>`.** This said `Row` until #5, and `Row` is
 `label / value / note / selected / adjustable` — a settings row. A sparkline has

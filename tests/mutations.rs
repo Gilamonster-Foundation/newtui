@@ -58,6 +58,68 @@ struct Mutation {
 /// several, when there is more than one way to break the thing it holds.
 const MUTATIONS: &[Mutation] = &[
     Mutation {
+        defect: "an undeclared host label glyph disappears into whitespace \
+                 instead of leaving a visible, single-column replacement",
+        file: "src/widget/output.rs",
+        from: "    } else {\n        '?'\n    }",
+        to: "    } else {\n        ' '\n    }",
+        expect_red: "undeclared_label_glyphs_are_visibly_replaced",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "gauge ignores its numeric inputs and always renders half full",
+        file: "src/widget/gauge.rs",
+        from: "    let level = ratio(value, maximum);",
+        to: "    let level = 0.5;\n    let _ = (value, maximum);",
+        expect_red: "gauge_fill_is_monotone_in_value",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "sparkline keeps the oldest visible samples instead of the newest",
+        file: "src/widget/sparkline.rs",
+        from: "    let data: Vec<f64> = values.iter().rev().take(width).rev().copied().collect();",
+        to: "    let data: Vec<f64> = values.iter().take(width).copied().collect();",
+        expect_red: "sparkline_preserves_sample_order_and_right_alignment",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "a real widget returns no lines, making an `all`-based width \
+                 assertion vacuously green unless the rectangle's height is \
+                 part of the same domain guard",
+        file: "src/widget/sparkline.rs",
+        from: "    WidgetOutput::new(lines)\n}",
+        to: "    WidgetOutput::new(vec![])\n}",
+        expect_red: "every_widget_survives_the_full_numeric_domain_and_degenerate_rectangles",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "an empty widget passes width checking because `all` over no \
+                 lines is true, despite a non-empty requested height",
+        file: "src/widget/output.rs",
+        from: "        if self.lines.len() != height {",
+        to: "        if false {",
+        expect_red: "widget::output::tests::an_empty_result_cannot_pass_a_nonempty_height",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "a widget line may occupy fewer display columns than the \
+                 rectangle promised to its host",
+        file: "src/widget/output.rs",
+        from: "            if actual != width {",
+        to: "            if false {",
+        expect_red: "widget::output::tests::every_line_must_use_the_declared_width",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "the closed single-column alphabet accepts every glyph, so \
+                 an emoji makes the character count lie about display width",
+        file: "src/widget/output.rs",
+        from: "text.chars().find(|glyph| !is_declared_glyph(*glyph))",
+        to: "text.chars().find(|_| false)",
+        expect_red: "widget::output::tests::the_single_column_alphabet_is_closed",
+        cargo_args: &[],
+    },
+    Mutation {
         defect: "the end-of-search assignment overwrites a depth truncation \
                  (the bug fixed in 5307cd7)",
         file: "src/explore.rs",
@@ -283,6 +345,15 @@ const MUTATIONS: &[Mutation] = &[
         file: "docs/CATALOG.md",
         from: "<!-- component: settings_panel -->",
         to: "<!-- omitted component: settings_panel -->",
+        expect_red: "catalog_lists_every_component_export",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "the catalogue omits a widget while its public builder export \
+                 remains",
+        file: "docs/CATALOG.md",
+        from: "<!-- widget: sparkline -->",
+        to: "<!-- omitted widget: sparkline -->",
         expect_red: "catalog_lists_every_component_export",
         cargo_args: &[],
     },

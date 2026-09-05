@@ -156,6 +156,27 @@ That is what makes the corpus portable. A property is a claim about
 it — and a reimplementation in another language, another framework, or another
 agent's codebase can be held to exactly the same set.
 
+## Display: styled data, no renderer
+
+Widgets return `WidgetOutput`, a rectangle of lines made from text runs with
+semantic tones. The host owns the palette: even the optional ratatui adapter
+takes a `Tone -> Style` mapping rather than naming colors here. `Row` remains
+the interactive component vocabulary; it is not bent into a chart cell.
+
+```rust
+let graph = newtui::sparkline(
+    &[10.0, 80.0, 45.0],
+    100.0,
+    8,
+    3,
+    newtui::SparkDirection::Up,
+);
+assert!(graph.validate(8, 3).is_ok());
+```
+
+The six builders and their degenerate-width behaviour are catalogued in
+[`docs/CATALOG.md`](docs/CATALOG.md).
+
 ## Leaf by construction
 
 At `--no-default-features` this crate's resolved dependency closure is
@@ -170,7 +191,7 @@ several harnesses — including ones with no terminal at all.
 
 | Path | What |
 |---|---|
-| `src/` | the core: keys, views, the component seam, properties, the explorer |
+| `src/` | the core: keys, views, component and widget seams, properties, the explorer |
 | `demos/` | one recorded terminal demo per component, and the tapes that produce them |
 | `examples/python/` | driving the components from Python |
 | `docs/` | the logo, and design notes |
