@@ -2,7 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use newtui_core::{
-    properties, Component, Explorer, Fingerprint, Flow, Key, Property, Report, Row, View,
+    properties, Component, Explorer, Fingerprint, Flow, Key, Property, PropertyCoverage, Report,
+    Row, Verdict as CoreVerdict, View,
 };
 use pyo3::exceptions::PyAttributeError;
 use pyo3::prelude::*;
@@ -208,6 +209,81 @@ pub(crate) struct PyReport {
     failures: Vec<CallbackFailure>,
 }
 
+#[pyclass(name = "Verdict", frozen, skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PyVerdict {
+    #[pyo3(get)]
+    kind: &'static str,
+    #[pyo3(get)]
+    reason: Option<String>,
+}
+
+impl PyVerdict {
+    fn from_report(report: &Report, failures: &[CallbackFailure]) -> Self {
+        // A callback failure makes the adapter unable to stand behind the
+        // walk, even when the core's partial observations happened to hold.
+        // The primary verdict must carry that fact rather than contradicting
+        // the structured error list beside it.
+        if let Some(failure) = failures.first() {
+            return Self {
+                kind: "incomplete",
+                reason: Some(format!(
+                    "PYTHON CALLBACK FAILED — `{}` raised; see Report.errors",
+                    failure.method
+                )),
+            };
+        }
+        match report.verdict() {
+            CoreVerdict::Clean => Self {
+                kind: "clean",
+                reason: None,
+            },
+            CoreVerdict::Violated(_) => Self {
+                kind: "violated",
+                reason: None,
+            },
+            CoreVerdict::Incomplete { reason, .. } => Self {
+                kind: "incomplete",
+                reason: Some(reason.to_string()),
+            },
+        }
+    }
+}
+
+#[pyclass(name = "PropertyCoverage", frozen, skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PyPropertyCoverage {
+    #[pyo3(get)]
+    name: String,
+    #[pyo3(get)]
+    observations: usize,
+    #[pyo3(get)]
+    applicable: usize,
+    #[pyo3(get)]
+    held: usize,
+    #[pyo3(get)]
+    outcome: &'static str,
+}
+
+impl From<&PropertyCoverage> for PyPropertyCoverage {
+    fn from(coverage: &PropertyCoverage) -> Self {
+        let outcome = if coverage.applicable == 0 {
+            "not_applicable"
+        } else if coverage.held == coverage.applicable {
+            "held"
+        } else {
+            "violated"
+        };
+        Self {
+            name: coverage.name.clone(),
+            observations: coverage.observations,
+            applicable: coverage.applicable,
+            held: coverage.held,
+            outcome,
+        }
+    }
+}
+
 #[pymethods]
 impl PyReport {
     #[getter]
@@ -228,6 +304,20 @@ impl PyReport {
     #[getter]
     fn is_clean(&self) -> bool {
         self.failures.is_empty() && self.report.is_clean()
+    }
+
+    #[getter]
+    fn verdict(&self) -> PyVerdict {
+        PyVerdict::from_report(&self.report, &self.failures)
+    }
+
+    #[getter]
+    fn properties(&self) -> Vec<PyPropertyCoverage> {
+        self.report
+            .properties
+            .iter()
+            .map(PyPropertyCoverage::from)
+            .collect()
     }
 
     #[getter]
@@ -288,6 +378,8 @@ pub(crate) fn explore(
 pub(crate) fn add_classes(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyCallbackError>()?;
     module.add_class::<PyPropertySet>()?;
+    module.add_class::<PyVerdict>()?;
+    module.add_class::<PyPropertyCoverage>()?;
     module.add_class::<PyReport>()?;
     module.add_function(wrap_pyfunction!(explore, module)?)?;
 
