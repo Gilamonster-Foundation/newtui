@@ -79,13 +79,21 @@ class MyPythonPanel:
 
 
 report = newtui.explore(lambda: MyPythonPanel(), newtui.properties.standard())
-assert report.is_clean, report
+assert report.verdict.kind == "clean", report.verdict.reason or report
 ```
 
 `explore` holds the GIL for the complete walk because every transition can
 call Python. A callback exception is recorded in `report.errors`, makes
 `report.is_clean` false, and terminates that path; no Python exception is
 allowed to unwind across the Rust boundary.
+
+`report.verdict` preserves the core's three answers: `clean`, `violated`, or
+`incomplete`. An incomplete verdict carries the reason, including a stopped
+search, a property whose domain was never reached, replay divergence, or a
+Python callback failure. `report.properties` exposes each claim's observation,
+applicable, and held counts plus its `not_applicable`, `held`, or `violated`
+outcome. Those are in-memory evidence about the walk; the state corpus remains
+outside this binding.
 
 The binding is a separate, non-default workspace member. Build it into an
 active virtual environment with `python -m maturin develop --manifest-path
