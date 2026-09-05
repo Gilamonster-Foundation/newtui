@@ -18,7 +18,7 @@
 #   intentionally NONE`. Run them locally with `just formal`.
 
 # Format, lint, test and document — the whole gate.
-check: fmt clippy test doc leaf coverage rust-mutations no-sorry model
+check: fmt clippy test doc leaf coverage binding binding-coverage python-coverage rust-mutations no-sorry model
 
 # Verify formatting (does not modify files).
 fmt:
@@ -58,6 +58,24 @@ leaf:
 # re-measure the same core would double the cost of the gate for nothing.
 coverage:
     cargo llvm-cov --all-features --summary-only --fail-under-lines 80
+
+# PyO3 remains outside the default members, so each binding command names its
+# package. That explicitness is what keeps a plain core build leaf-only.
+binding:
+    cargo clippy -p newtui-py --all-targets -- -D warnings
+    cargo test -p newtui-py
+    RUSTDOCFLAGS="-D warnings" cargo doc -p newtui-py --no-deps
+
+# Rust coverage for the binding adapter itself. Python drives the same surface
+# below, but only the embedded-interpreter tests make LLVM see through PyO3.
+binding-coverage:
+    cargo llvm-cov -p newtui-py --summary-only --fail-under-lines 80 --ignore-filename-regex 'newtui-py/tests/'
+
+# Build the extension into the selected Python environment, execute both API
+# directions and every Python documentation fence, then enforce Python's own
+# source-line floor. Set PYTHON to select an interpreter explicitly.
+python-coverage:
+    scripts/check-python.sh
 
 # Every Rust guard has a defect it provably catches. Named target because
 # tests/mutations.rs is `test = false` — it builds a mutated copy of the crate
