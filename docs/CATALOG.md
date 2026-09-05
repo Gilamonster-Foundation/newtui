@@ -199,4 +199,13 @@ not an isolated crossing microbenchmark.
 
 A Python callback exception becomes a structured `report.errors` entry with
 the callback name and key path. The affected branch closes, `report.is_clean`
-is false, and no exception or panic crosses the FFI boundary.
+is false, `report.verdict` is `incomplete` with a reason, and no exception or
+panic crosses the FFI boundary. Otherwise the verdict preserves the Rust
+report's three answers — `clean`, `violated`, and `incomplete` — rather than
+asking callers to infer completeness from `is_clean` and `exhausted`.
+
+`report.properties` carries each supplied claim's observation, applicable,
+and held counts with a derived `not_applicable`, `held`, or `violated` outcome.
+This belongs to the in-memory Python explorer because it says whether the
+acceptance claims were exercised at all. The views and a portable corpus do
+not cross this face; those require #13's separately governed wire format.
