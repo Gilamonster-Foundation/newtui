@@ -67,7 +67,7 @@ fn cell_intensity(level: f64, height: usize, row: usize) -> f64 {
 
 fn fit(text: &str, width: usize) -> String {
     text.chars()
-        .filter(|ch| output::is_declared_glyph(*ch))
+        .map(output::declared_glyph_or_replacement)
         .take(width)
         .chain(std::iter::repeat(' '))
         .take(width)
@@ -81,7 +81,7 @@ fn fitted_line(runs: Vec<Run>, width: usize) -> WidgetLine {
         let text: String = run
             .text
             .chars()
-            .filter(|glyph| output::is_declared_glyph(*glyph))
+            .map(output::declared_glyph_or_replacement)
             .take(remaining)
             .collect();
         remaining = remaining.saturating_sub(text.chars().count());
