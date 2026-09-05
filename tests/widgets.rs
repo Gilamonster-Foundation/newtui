@@ -133,6 +133,59 @@ fn narrow_widgets_clip_labels_instead_of_panicking() {
     }
 }
 
+// GUARD: gauge_fill_is_monotone_in_value — this is a guard; tests/mutations.rs must show it red.
+#[test]
+fn gauge_fill_is_monotone_in_value() {
+    let width = 4;
+    let mut previous = 0;
+
+    // Four columns are shorter than every caption in this sweep, so this measures the bar rather
+    // than accidentally proving that a widening caption contains no block glyphs.
+    for value in (0..=100).step_by(5) {
+        let output = gauge("daily", f64::from(value), 100.0, width, 1);
+        assert_shape(&output, width, 1);
+        let filled = output.lines[0]
+            .text()
+            .chars()
+            .filter(|glyph| *glyph == '\u{2588}')
+            .count();
+        assert!(
+            filled >= previous,
+            "gauge fill decreased from {previous} to {filled} at value {value}"
+        );
+        previous = filled;
+    }
+
+    // The endpoints keep a fixed-but-monotone rendering from satisfying the ordering law.
+    assert_eq!(
+        gauge("daily", 0.0, 100.0, width, 1).lines[0]
+            .text()
+            .chars()
+            .filter(|glyph| *glyph == '\u{2588}')
+            .count(),
+        0
+    );
+    assert_eq!(previous, width);
+}
+
+// GUARD: sparkline_preserves_sample_order_and_right_alignment — this is a guard; tests/mutations.rs must show it red.
+#[test]
+fn sparkline_preserves_sample_order_and_right_alignment() {
+    let retained_tail = sparkline(
+        &[100.0, 0.0, 0.0, 0.0, 0.0, 100.0, 0.0],
+        100.0,
+        4,
+        1,
+        SparkDirection::Up,
+    );
+    assert_shape(&retained_tail, 4, 1);
+    assert_eq!(retained_tail.lines[0].text(), "  \u{2588} ");
+
+    let short_series = sparkline(&[0.0, 100.0], 100.0, 4, 1, SparkDirection::Up);
+    assert_shape(&short_series, 4, 1);
+    assert_eq!(short_series.lines[0].text(), "   \u{2588}");
+}
+
 // GUARD: undeclared_label_glyphs_are_visibly_replaced — this is a guard; tests/mutations.rs must show it red.
 #[test]
 fn undeclared_label_glyphs_are_visibly_replaced() {
