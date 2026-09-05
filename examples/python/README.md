@@ -19,7 +19,21 @@ owns the behaviour; your host owns the drawing.
 ```python
 import newtui
 
-panel = newtui.settings_panel(backend="sol", models=["qwen3.5:397b", "nemotron:30b"])
+panel = newtui.settings_panel(
+    settings=[
+        newtui.Setting.choice(
+            "tenacity",
+            "tenacity",
+            "auto",
+            [
+                newtui.Choice("auto", "inherit"),
+                newtui.Choice("steady", "persist"),
+            ],
+        )
+    ],
+    backend="sol",
+    models=["qwen3.5:397b", "nemotron:30b"],
+)
 panel.handle(newtui.Key.DOWN)
 panel.handle(newtui.Key.RIGHT)
 
@@ -36,12 +50,43 @@ That is the part worth the binding: a shared corpus is how two implementations
 of one component stay one component.
 
 ```python
+import newtui
+
+
+class MyPythonPanel:
+    def __init__(self):
+        self.level = 0
+
+    def handle(self, key):
+        if key == newtui.Key.RIGHT:
+            self.level = min(3, self.level + 1)
+        elif key == newtui.Key.LEFT:
+            self.level = max(0, self.level - 1)
+        elif key == newtui.Key.ENTER:
+            return newtui.Flow.close(True)
+        elif key == newtui.Key.ESC:
+            return newtui.Flow.close(False)
+        return newtui.Flow.stay()
+
+    def view(self):
+        return newtui.View(
+            "dial",
+            [newtui.Row(
+                "level", str(self.level), selected=True, adjustable=True
+            )],
+            "arrows change",
+        )
+
+
 report = newtui.explore(lambda: MyPythonPanel(), newtui.properties.standard())
 assert report.is_clean, report
 ```
 
-## Status
+`explore` holds the GIL for the complete walk because every transition can
+call Python. A callback exception is recorded in `report.errors`, makes
+`report.is_clean` false, and terminates that path; no Python exception is
+allowed to unwind across the Rust boundary.
 
-Scaffolding. The seam is settled and the Rust side is real; the binding lands
-once the first components move over, so it can be shaped by what they actually
-export rather than by a guess.
+The binding is a separate, non-default workspace member. Build it into an
+active virtual environment with `python -m maturin develop --manifest-path
+newtui-py/Cargo.toml`; the core crate retains its empty runtime closure.
