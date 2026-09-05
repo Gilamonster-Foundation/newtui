@@ -24,6 +24,8 @@ jobs:
       # and the one tests/leaf.rs proves has an empty closure. It has to pass.
       - run: cargo test --no-default-features
       - run: cargo test --all-features
+      # Non-default by design, so it cannot disappear behind workspace defaults.
+      - run: cargo test -p newtui-py
 
   clippy:
     name: Lint
@@ -36,6 +38,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo clippy --all-targets --no-default-features -- -D warnings
+      - run: cargo clippy -p newtui-py --all-targets -- -D warnings
 
   fmt:
     name: Format
@@ -55,6 +58,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
+      - run: RUSTDOCFLAGS="-D warnings" cargo doc -p newtui-py --no-deps
 
   msrv:
     name: MSRV (Rust 1.88)
@@ -66,6 +70,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.88
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --all-targets --all-features --locked
+      - run: cargo build -p newtui-py --all-targets --locked
 
   mutations:
     name: Expected-red (every guard catches a real defect)
@@ -92,6 +97,24 @@ jobs:
       # --all-features only. Its own job so a drop names itself instead of
       # hiding inside a test failure.
       - run: cargo llvm-cov --all-features --summary-only --fail-under-lines 80
+      # The adapter is outside the default members and needs its own measured
+      # floor; embedded Python tests let LLVM observe the PyO3 call paths.
+      - run: cargo llvm-cov -p newtui-py --summary-only --fail-under-lines 80 --ignore-filename-regex 'newtui-py/tests/'
+
+  python-coverage:
+    name: Python API, examples and coverage (80% lines)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: python -m pip install 'maturin>=1.9.4,<2' 'coverage>=7,<8'
+      # Same script as `just check` and the hook fallback: the markdown
+      # examples are executable product surface, not untested prose.
+      - run: PYTHON=python scripts/check-python.sh
 
   leaf:
     name: Leaf invariant (empty runtime closure)
