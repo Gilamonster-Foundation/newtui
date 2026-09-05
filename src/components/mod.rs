@@ -1,5 +1,3 @@
-#![doc = include_str!("../../docs/CATALOG.md")]
-
 //! The interactive components shipped by this crate.
 //!
 //! [`settings_panel`] is the pilot extraction: a host supplies its vocabulary,
