@@ -2,6 +2,14 @@
 # Build artifacts (cargo default output dir).
 /target
 
+# Python binding build and interpreter artifacts. The package source is the
+# facade; maturin's in-place extension and bytecode caches are local products.
+*.so
+__pycache__/
+*.py[cod]
+.coverage
+.venv
+
 # Cargo.lock IS committed. The usual "libraries don't commit lockfiles"
 # convention optimizes for downstream resolution flexibility — which is
 # preserved, because consumers ignore a dependency's committed lock. What we
