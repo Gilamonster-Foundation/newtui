@@ -58,6 +58,43 @@ struct Mutation {
 /// several, when there is more than one way to break the thing it holds.
 const MUTATIONS: &[Mutation] = &[
     Mutation {
+        defect: "a real widget returns no lines, making an `all`-based width \
+                 assertion vacuously green unless the rectangle's height is \
+                 part of the same domain guard",
+        file: "src/widget/sparkline.rs",
+        from: "    WidgetOutput::new(lines)\n}",
+        to: "    WidgetOutput::new(vec![])\n}",
+        expect_red: "every_widget_survives_the_full_numeric_domain_and_degenerate_rectangles",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "an empty widget passes width checking because `all` over no \
+                 lines is true, despite a non-empty requested height",
+        file: "src/widget/output.rs",
+        from: "        if self.lines.len() != height {",
+        to: "        if false {",
+        expect_red: "widget::output::tests::an_empty_result_cannot_pass_a_nonempty_height",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "a widget line may occupy fewer display columns than the \
+                 rectangle promised to its host",
+        file: "src/widget/output.rs",
+        from: "            if actual != width {",
+        to: "            if false {",
+        expect_red: "widget::output::tests::every_line_must_use_the_declared_width",
+        cargo_args: &[],
+    },
+    Mutation {
+        defect: "the closed single-column alphabet accepts every glyph, so \
+                 an emoji makes the character count lie about display width",
+        file: "src/widget/output.rs",
+        from: "text.chars().find(|glyph| !is_declared_glyph(*glyph))",
+        to: "text.chars().find(|_| false)",
+        expect_red: "widget::output::tests::the_single_column_alphabet_is_closed",
+        cargo_args: &[],
+    },
+    Mutation {
         defect: "the end-of-search assignment overwrites a depth truncation \
                  (the bug fixed in 5307cd7)",
         file: "src/explore.rs",
