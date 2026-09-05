@@ -121,8 +121,10 @@ class Dial:
 
 report = newtui.explore(lambda: Dial(), newtui.properties.standard())
 assert report.is_clean, str(report)
+assert report.verdict.kind == "clean" and report.verdict.reason is None
 assert report.exhausted and report.states == 4 and report.transitions > 0
 assert report.errors == []
+assert report.properties and all(p.outcome == "held" for p in report.properties)
 
 class Explicit(Dial):
     def fingerprint(self):
@@ -130,6 +132,65 @@ class Explicit(Dial):
 
 explicit = newtui.explore(lambda: Explicit(), newtui.properties.standard())
 assert explicit.is_clean, str(explicit)
+"#,
+    );
+}
+
+// GUARD: python_report_preserves_three_valued_verdict — this is a guard; tests/mutations.rs must show it red.
+#[test]
+fn python_report_preserves_three_valued_verdict() {
+    with_module(
+        r#"
+class Dial:
+    def __init__(self, level=0):
+        self.level = level
+    def handle(self, key):
+        if key == newtui.Key.ENTER:
+            return newtui.Flow.close(True)
+        if key == newtui.Key.ESC:
+            return newtui.Flow.close(False)
+        return newtui.Flow.stay()
+    def view(self):
+        return newtui.View("dial", [newtui.Row(
+            "level", str(self.level), selected=True, adjustable=True
+        )], "")
+    def fingerprint(self):
+        return str(self.level)
+
+clean = newtui.explore(lambda: Dial(), newtui.properties.standard())
+assert clean.verdict.kind == "clean" and clean.verdict.reason is None
+assert all(prop.outcome == "held" for prop in clean.properties)
+
+class Broken(Dial):
+    def view(self):
+        return newtui.View("dial", [
+            newtui.Row("level", "0", selected=True, adjustable=True),
+            newtui.Row("also selected", "x", selected=True, adjustable=True),
+        ], "")
+
+violated = newtui.explore(lambda: Broken(), newtui.properties.standard())
+assert violated.verdict.kind == "violated"
+assert any(prop.outcome == "violated" for prop in violated.properties)
+
+builds = 0
+def drifting():
+    global builds
+    component = Dial(builds)
+    builds += 1
+    return component
+
+incomplete = newtui.explore(drifting, newtui.properties.standard())
+assert incomplete.verdict.kind == "incomplete"
+assert "REPLAY DID NOT LAND" in incomplete.verdict.reason
+
+class Empty(Dial):
+    def view(self):
+        return newtui.View("empty", [], "")
+
+unreached = newtui.explore(lambda: Empty(), newtui.properties.standard())
+assert unreached.verdict.kind == "incomplete"
+assert "PROPERTY NEVER APPLIED" in unreached.verdict.reason
+assert any(prop.outcome == "not_applicable" for prop in unreached.properties)
 "#,
     );
 }
@@ -147,6 +208,8 @@ class Panel:
 
 handle = newtui.explore(lambda: Panel(), newtui.properties.standard())
 assert not handle.is_clean
+assert handle.verdict.kind == "incomplete"
+assert "PYTHON CALLBACK FAILED" in handle.verdict.reason
 assert handle.errors[0].method == "handle"
 assert "RuntimeError: dial broke" in handle.errors[0].detail
 assert handle.errors[0].path
