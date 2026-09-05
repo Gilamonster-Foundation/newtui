@@ -17,10 +17,11 @@ optional model pick, and whether to open the backend chooser. The host owns all
 writes, validation, receipts, network calls, and drawing.
 
 It answers Up/Down by clamping selection, Left/Right by clamping adjustable
-dials, Enter by returning an apply or open-backends intent, and Esc (or plain
-`q`) by closing without an intent. An unreachable backend is represented by
-`Model::new(current, None)`: the active model remains visible, is not
-adjustable, and explains why it cannot move.
+dials, Enter by returning an apply or open-backends intent, and Esc by closing
+without an intent. A host that wants `q` to quit maps it to `Key::Esc` while
+decoding input; printable characters carry no policy here. An unreachable
+backend is represented by `Model::new(current, None)`: the active model remains
+visible, is not adjustable, and explains why it cannot move.
 
 Its acceptance set requires selection in range, Esc to close without applying,
 only adjustable rows to move, and every moved dial value to belong to the
