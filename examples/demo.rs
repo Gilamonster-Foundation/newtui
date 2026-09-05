@@ -163,7 +163,7 @@ impl SettingsDemo {
             ));
         }
         let height = u16::try_from(lines.len().saturating_add(2)).unwrap_or(u16::MAX);
-        let area = centered(frame.area(), 60, height);
+        let area = centered(frame.area(), 68, height);
         frame.render_widget(
             Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title(" settings ")),
             area,
@@ -286,13 +286,16 @@ impl WidgetDemo {
         let output = self.kind.output(width);
         let lines = ratatui_lines(&output, tone_style);
         let chart_height = u16::try_from(output.lines.len()).unwrap_or(u16::MAX);
-        let host = centered(frame.area(), 42, chart_height.saturating_add(6));
+        let chart_area = self.chart_area(frame.area(), width, chart_height);
+        // Header and footer each draw one line. Giving either a padding row
+        // would make the recorder steal the only content row from a short widget.
+        let host = centered(frame.area(), 42, chart_height.saturating_add(4));
         let layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(2),
+                Constraint::Length(1),
                 Constraint::Length(chart_height.saturating_add(2)),
-                Constraint::Length(2),
+                Constraint::Length(1),
             ])
             .split(host);
         frame.render_widget(
@@ -308,24 +311,92 @@ impl WidgetDemo {
             .alignment(Alignment::Center),
             layout[0],
         );
-        frame.render_widget(
-            Paragraph::new(lines).block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(format!(" {} ", self.kind.title())),
-            ),
-            centered(
-                layout[1],
-                u16::try_from(width.saturating_add(2)).unwrap_or(u16::MAX),
-                chart_height.saturating_add(2),
-            ),
-        );
+        frame.render_widget(Paragraph::new(lines).block(self.chart_block()), chart_area);
         frame.render_widget(
             Paragraph::new("← narrower   → wider   q quit")
                 .style(Style::default().fg(Color::DarkGray))
                 .alignment(Alignment::Center),
             layout[2],
         );
+    }
+
+    fn chart_area(&self, area: Rect, width: usize, chart_height: u16) -> Rect {
+        let host = centered(area, 42, chart_height.saturating_add(4));
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1),
+                Constraint::Length(chart_height.saturating_add(2)),
+                Constraint::Length(1),
+            ])
+            .split(host);
+        centered(
+            layout[1],
+            u16::try_from(width.saturating_add(2)).unwrap_or(u16::MAX),
+            chart_height.saturating_add(2),
+        )
+    }
+
+    fn chart_block(&self) -> Block<'static> {
+        Block::default()
+            .borders(Borders::ALL)
+            .title(format!(" {} ", self.kind.title()))
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn assert_recorded_widgets_render_content() {
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    for name in [
+        "sparkline",
+        "butterfly",
+        "heat_meter",
+        "gauge",
+        "bar",
+        "core_grid",
+    ] {
+        let Some(Demo::Widget(mut demo)) = Demo::named(name) else {
+            panic!("the `{name}` recording names a widget demo");
+        };
+        for at in 0..demo.widths.len() {
+            demo.at = at;
+            let width = demo.widths[at];
+            let output = demo.kind.output(width);
+            let height = u16::try_from(output.lines.len()).expect("demo output height fits a u16");
+            // The short tapes expose six rows; the taller recordings have room
+            // for their four-row widgets. Keeping the short case constrained is
+            // what exercises the release artifact instead of a roomier fiction.
+            let recorder_height = if height == 1 { 6 } else { 12 };
+            let frame_area = Rect::new(0, 0, 64, recorder_height);
+            let backend = TestBackend::new(frame_area.width, frame_area.height);
+            let mut terminal = Terminal::new(backend).expect("the test terminal is available");
+            terminal
+                .draw(|frame| demo.render(frame))
+                .expect("the demo renders into its recorder-sized terminal");
+
+            let outer = demo.chart_area(frame_area, width, height);
+            let inner = demo.chart_block().inner(outer);
+            assert_eq!(
+                usize::from(inner.width),
+                width,
+                "`{name}` says requested width {width}, but receives {} columns",
+                inner.width
+            );
+            assert_eq!(
+                inner.height, height,
+                "`{name}` loses content rows inside its border"
+            );
+
+            let buffer = terminal.backend().buffer();
+            let has_content = (inner.y..inner.bottom())
+                .any(|y| (inner.x..inner.right()).any(|x| buffer[(x, y)].symbol() != " "));
+            assert!(
+                has_content,
+                "`{name}` at requested width {width} renders a blank interior"
+            );
+        }
     }
 }
 
