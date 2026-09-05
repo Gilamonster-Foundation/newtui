@@ -11,11 +11,13 @@ mod sparkline;
 
 pub use bar::bar;
 pub use butterfly::butterfly;
-pub use core_grid::{core_grid, CoreSeries};
+pub use core_grid::core_grid;
+pub use core_grid::CoreSeries;
 pub use gauge::gauge;
 pub use heat_meter::heat_meter;
 pub use output::{Run, Tone, WidgetLine, WidgetOutput, WidgetOutputError};
-pub use sparkline::{sparkline, SparkDirection};
+pub use sparkline::sparkline;
+pub use sparkline::SparkDirection;
 
 #[cfg(feature = "ratatui")]
 pub use output::ratatui_lines;
