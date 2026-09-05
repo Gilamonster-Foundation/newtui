@@ -67,6 +67,13 @@ pub use view::{Row, View};
 #[doc = include_str!("../README.md")]
 struct TheReadmeIsCompiledAndRun;
 
+/// Every catalogue example is compiled and RUN without replacing the crate's
+/// own front-page documentation with an inventory that spans namespaces.
+// GUARD: TheCatalogIsCompiledAndRun — this is a guard; tests/mutations.rs must show it red.
+#[cfg(doctest)]
+#[doc = include_str!("../docs/CATALOG.md")]
+struct TheCatalogIsCompiledAndRun;
+
 #[cfg(test)]
 mod tests {
     use super::*;
