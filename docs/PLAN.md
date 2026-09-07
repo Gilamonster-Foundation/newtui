@@ -24,11 +24,11 @@ Two families under one roof:
 - **Widgets** are display — a pure function from data to cells. A sparkline, a
   butterfly meter, a heat bar, a gauge.
 
-The north star, in Shawn's words: **a TUI version of Grafana.** Dashboards of
-live panels, keyboard navigable, over data sources you bring. Getting there
-needs a chart vocabulary that renders honestly at eight columns wide, an
-interaction model that never strands the operator, and components proven
-against every state they can reach rather than the three someone demoed.
+The public focus is **Shawn's custom TUI widgets**, developed for his TUI
+harnesses and collected into a reusable library. The [widget catalog](WIDGETS.md)
+is the entry point: controls, compact charts, and workspace panels. Dashboards
+are one composition of those pieces. Each piece should work independently,
+handle narrow terminals, and ship with examples and behavioral checks.
 
 ## Why a separate repo, not a newt-agent crate
 
@@ -146,23 +146,68 @@ bounded vocabulary with zero violations and `exhausted: true`.
 
 ### Package B — the widget family and its data seam (blocks F, G)
 
-The second family, and the one the Grafana use case needs. `gila-monitor-tui`
+The display family, extracted for reuse across harnesses. `gila-monitor-tui`
 has the right shape already: `build_net_butterfly_line` is a **pure builder**
 with `draw_net_butterfly_meter` a thin wrapper. Generalise that split.
 
-Donors, in `gilabot/gila-monitor-tui/src/ui/`:
+Donors, in [gilabot/gila-monitor-tui/src/ui](https://github.com/hartsock/gilabot/tree/main/gila-monitor-tui/src/ui).
+The [catalog](WIDGETS.md) links each donor function and distinguishes existing
+implementations from planned library variants.
 
 | Widget | Source |
 |---|---|
-| sparkline / history graph | `metrics.rs::draw_graph`, `draw_graph_inverted` |
+| heat graph / mirrored history | `metrics.rs::draw_graph`, `draw_graph_inverted` |
 | butterfly meter | `swarm.rs::build_net_butterfly_line` (already pure, already tested) |
 | heat meter | `metrics.rs::draw_heat_meter` |
 | gauge | `budget.rs::draw_gauge` |
 | bar line / labelled bar | `metrics.rs::draw_bar_line`, `draw_bar_with_label` |
-| core grid | `metrics.rs::draw_cpu_cores` |
+| per-core / named-series history | `metrics.rs::draw_cpu_cores` |
+| activity heat row / status history | `swarm.rs::build_heatrow_commits`, `build_heatrow_status` |
+| animated character | `character.rs::draw` |
+| machine / GPU machine card | `metrics.rs::draw_machine_cell`, the GPU-machine cell |
+| adaptive metrics list / scrollbar | `metrics.rs::summary_layout`, `draw_scrollbar` |
 
-A widget is `fn(data, width, height) -> Vec<Row>` (or a cell grid) — **pure, no
-`Frame`**. Rendering is the optional `ratatui` adapter.
+A display widget builds a cell grid from data and dimensions — **pure, no
+`Frame`**. Preserve cell positions, glyphs, and styles; the metrics graphs use
+color to encode sample intensity, while heat meters use a positional gradient.
+Plain label/value `Row` data cannot preserve that distinction. Keep the display
+grid separate from the interactive `View` and independent of terminal-library
+types. Rendering is the optional `ratatui` adapter; the grid API is still to be
+implemented.
+
+Extract small builders first: heat graphs, heat meters, labeled bars, the
+butterfly meter, and activity/status rows. The host supplies samples, limits,
+labels, units, palettes, and thresholds. App state, metric collection,
+Prometheus clients, and machine names stay with the host. Preserve the existing
+`░▒█` glyph vocabulary as a console-oriented option.
+
+#### Machine cards describe capabilities
+
+The donor's GPU-machine cell is a GPU-equipped machine composition, not a
+reusable name.
+Generalize it as a machine card with host-supplied GPU capabilities and memory
+topology. A `draw_gpu_machine_cell` adapter would describe its purpose more
+clearly during extraction.
+
+| Composition | Memory presentation |
+|---|---|
+| Machine without GPU metrics | System-memory usage and capacity |
+| GPU machine with separate memory | System-memory pool plus separate device-memory pools |
+| GPU machine with unified memory | One shared pool; optional CPU/GPU attribution when measurements support it |
+
+A DGX-specific card is a preset of the GPU composition, selecting the topology
+for that machine. Do not infer shared memory from a hostname or the DGX name.
+Represent shared pool identity explicitly so CPU and GPU views cannot count
+the same capacity twice. Missing memory metrics remain unavailable rather than
+appearing as zero usage. The unified-memory composition is new work; the
+existing GPU-machine cell is the extraction source, not evidence it is already
+implemented.
+
+**Card acceptance:** the same generic card accepts different names and data
+sources; separate and unified memory fixtures produce distinct layouts; a
+shared pool appears exactly once; and missing GPU metrics have a defined
+presentation. Host-specific CPU, GPU, storage, and network collection remains
+outside newtui.
 
 Widgets are tested over DATA DOMAINS the way components are tested over key
 sequences: empty series, one point, all-equal, all-zero, a single spike, values
@@ -221,7 +266,7 @@ Two uses, and the second is the one that earns the binding:
 
 ### Package F — the dashboard layer (needs B)
 
-Where the Grafana use case becomes real: a panel is a widget bound to a data
+One way to compose the widgets: a panel is a widget bound to a data
 source; a dashboard is a layout of panels plus keyboard navigation. The data
 source is a trait the host implements — newtui ships mock sources, never a
 client for anybody's database.
