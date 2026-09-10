@@ -1,0 +1,201 @@
+schema_version = 1
+id = "ac94436c-f734-4b32-91fb-9bd0aa9100ae"
+title = "newtui — the component suite: panes, documents, and the changeset review surface"
+
+[tree]
+aggregation = "concat"
+
+[[tree.subtask]]
+id = "node-a"
+instruction = "Package A — port newt-tui/src/settings_panel.rs across to newtui behind the Component seam. Rows become View/Row; Flow is already identical. The settings vocabulary (what tenacity accepts) stays in newt and arrives as constructor data, including the Rounds bound as {release,min,min+1,max-1,max}. newt keeps a thin adapter and DELETES its local panel::Key. Acceptance: newt's /settings behaves identically (its 16 tests pass against the adapter) and newtui explores the component with zero violations and exhausted:true. See docs/PLAN.md 'Package A'."
+deps = []
+parallel_ok = false
+context = []
+status = "pending"
+kind = "phase"
+
+[tree.subtask.caveat_policy]
+fs_read = "none"
+fs_write = "none"
+exec = "none"
+net = "none"
+
+[[tree.subtask]]
+id = "node-b"
+instruction = "Package B — establish the widget family and its data seam: a widget is fn(data,width,height) -> rows/cells, pure, no Frame. Port the donors from gilabot/gila-monitor-tui/src/ui/: sparkline (metrics.rs::draw_graph), butterfly meter (swarm.rs::build_net_butterfly_line, already pure), heat meter, gauge, bar line, core grid. Test over data domains: empty series, one point, all-equal, all-zero, single spike, values above declared max, width narrower than the label, height 1, NaN, infinity. Acceptance: no panics across the domain set and gila-monitor-tui adopts at least one widget with its tests passing. See docs/PLAN.md 'Package B'."
+deps = []
+parallel_ok = false
+context = []
+status = "pending"
+kind = "phase"
+
+[tree.subtask.caveat_policy]
+fs_read = "none"
+fs_write = "none"
+exec = "none"
+net = "none"
+
+[[tree.subtask]]
+id = "node-c"
+instruction = "Package C — add the property-based layer for newt's per-PR gate: generated key sequences over the same Property set, with shrinking, at a budget that does not move the 5-minute suite. The exhaustive Explorer stays as newtui's own gate. Graft the two things the judges required: the harness self-test (a harness that cannot fail is worse than none) and an alphabet guard (a key the component ignores must be IN the alphabet). See docs/PLAN.md 'Package C'."
+deps = ["node-a"]
+parallel_ok = true
+context = []
+status = "pending"
+kind = "phase"
+
+[tree.subtask.caveat_policy]
+fs_read = "none"
+fs_write = "none"
+exec = "none"
+net = "none"
+
+[[tree.subtask]]
+id = "node-d"
+instruction = "Package D — one VHS tape per component in demos/, so a GIF is a build artifact regenerated from current code rather than a screenshot that drifts. `just demos` already exists. Each demo must show the behaviour the acceptance properties pin, not a feature tour; demos/README.md states what each one owes. See docs/PLAN.md 'Package D'."
+deps = []
+parallel_ok = true
+context = []
+status = "pending"
+kind = "phase"
+
+[tree.subtask.caveat_policy]
+fs_read = "none"
+fs_write = "none"
+exec = "none"
+net = "none"
+
+[[tree.subtask]]
+id = "node-e"
+instruction = "Package E — newtui-py: a PyO3 face as a NON-default workspace member so a plain cargo build never compiles it. Two uses: build a TUI in Python (drive a component, get a view, render with Textual/Rich), and hold a Python reimplementation to the same acceptance corpus so two implementations of one component stay one component. See docs/PLAN.md 'Package E' and examples/python/README.md."
+deps = ["node-a"]
+parallel_ok = true
+context = []
+status = "pending"
+kind = "phase"
+
+[tree.subtask.caveat_policy]
+fs_read = "none"
+fs_write = "none"
+exec = "none"
+net = "none"
+
+[[tree.subtask]]
+id = "node-f"
+instruction = "Package F — the dashboard layer AND the panel geometry every other composition sits on. Panels tile a BSP tree whose splits hold f32 ratios; rects are derived at render, never stored as cells. Donor: gilamonster-agent/src/layout.rs + keys.rs (both leaf-clean today — std and crate imports only). The resize model swaps from tmux round-robin to ratios DURING extraction, not after. Includes F.2 mouse resize via splits()->Vec<SplitBorder> + set_ratio_at(path,ratio) with the host doing hit-testing, and F.3 the change-reporting a host needs to defer reflow. Acceptance: an 80/20 split survives shrink-and-restore with identical ratios; the bounded ratio vocabulary explores exhausted:true; gilamonster-agent's cockpit runs on the crate with its layout tests passing. See docs/PLAN.md 'Package F'."
+deps = ["node-b"]
+parallel_ok = true
+context = []
+status = "pending"
+kind = "phase"
+
+[tree.subtask.caveat_policy]
+fs_read = "none"
+fs_write = "none"
+exec = "none"
+net = "none"
+
+[[tree.subtask]]
+id = "node-g"
+instruction = "Package G — adopt back into gila-monitor-tui: delete its local copy of a widget and take the crate's. This is the proof the extraction worked; if it is painful the seam is wrong and it is cheaper to learn now than after three consumers. See docs/PLAN.md 'Package G'."
+deps = ["node-b"]
+parallel_ok = true
+context = []
+status = "pending"
+kind = "phase"
+
+[tree.subtask.caveat_policy]
+fs_read = "none"
+fs_write = "none"
+exec = "none"
+net = "none"
+
+[[tree.subtask]]
+id = "node-h"
+instruction = "Package H — port backend_panel and config_panel, which is where the injected-writer question gets answered: a component that must WRITE takes an injected sink and returns an intent, so the component stays pure and the host performs the effect. Make that the crate's rule. See docs/PLAN.md 'Package H'."
+deps = ["node-a"]
+parallel_ok = true
+context = []
+status = "pending"
+kind = "phase"
+
+[tree.subtask.caveat_policy]
+fs_read = "none"
+fs_write = "none"
+exec = "none"
+net = "none"
+
+[[tree.subtask]]
+id = "node-i"
+instruction = "Package I — the mermaid widget, as a NON-default workspace member (newtui-mermaid) built on merman/merman-ascii. Do not write a mermaid parser. Use render_model_report so the widget reports overflow state instead of clipping silently. merman is 0.8.0-alpha.6 and merman-ascii is ~9.5MB/~336K SLoC, so it never goes near the leaf. Acceptance: flowchart/sequence/state/class/ER render without panicking across the widget domain set (width narrower than the longest label, height 1, empty diagram, parse error, diagram far larger than the viewport) and tests/leaf.rs still passes with an empty closure. See docs/PLAN.md 'Package I'."
+deps = ["node-b"]
+parallel_ok = true
+context = []
+status = "pending"
+kind = "phase"
+
+[tree.subtask.caveat_policy]
+fs_read = "none"
+fs_write = "none"
+exec = "none"
+net = "none"
+
+[[tree.subtask]]
+id = "node-j"
+instruction = "Package J — the linked two-pane: one component serving markdown edit/preview, a diff's old/new, and commit preview. It owns focus side, primary scroll offset, selected region, link mode, and the correspondence table it was GIVEN. It does not own the text, parse markdown, or diff anything. Acceptance: scrolling either side leaves the other on the corresponding region and never off the end; unlinked mode moves one side only; a correspondence with gaps still yields a defined position on both; exhausted:true over a bounded document. See docs/PLAN.md 'Package J'."
+deps = ["node-f"]
+parallel_ok = true
+context = []
+status = "pending"
+kind = "phase"
+
+[tree.subtask.caveat_policy]
+fs_read = "none"
+fs_write = "none"
+exec = "none"
+net = "none"
+
+[[tree.subtask]]
+id = "node-k"
+instruction = "Package K — the tree: a folder explorer and a markdown outline are one component over different node sources. State machine over expand/collapse/move/select; the node source is host data supplied lazily and the component never reads a filesystem. Acceptance: the cursor is always on a visible node (collapsing an ancestor moves the cursor to that ancestor, never strands it); expand-then-collapse restores the prior visible set; a source returning no children never renders an expandable node; exhausted:true over a small fixed tree. See docs/PLAN.md 'Package K'."
+deps = ["node-a"]
+parallel_ok = true
+context = []
+status = "pending"
+kind = "phase"
+
+[tree.subtask.caveat_policy]
+fs_read = "none"
+fs_write = "none"
+exec = "none"
+net = "none"
+
+[[tree.subtask]]
+id = "node-l"
+instruction = "Package L — the tabbed document container: active tab, tab order, per-tab dirty flag; the documents are the host's. Closing the active tab lands focus on the NEIGHBOUR, not index 0 (gilamonster-agent's cockpit shipped exactly that bug). Acceptance: closing a tab focuses its neighbour; closing the last leaves a defined empty state rather than an out-of-range index; a dirty tab cannot close without the host being told; tab order survives activation changes; exhausted:true. See docs/PLAN.md 'Package L'."
+deps = ["node-f"]
+parallel_ok = true
+context = []
+status = "pending"
+kind = "phase"
+
+[tree.subtask.caveat_policy]
+fs_read = "none"
+fs_write = "none"
+exec = "none"
+net = "none"
+
+[[tree.subtask]]
+id = "node-m"
+instruction = "Package M — the changeset review surface, the reason the IDE composition exists: a human reviewing an agent's changes before they land. Three components over one subject — the changeset view (package K over a change source), the diff view (package J over a hunk model with per-line add/remove/context), and the stage editor (stage/unstage/discard at file, hunk, or line granularity with per-file tri-state, plus the commit message form). It NEVER runs git: it returns intents (Stage/Unstage/Discard/Commit) and the host performs them. Discard is not the inverse of unstage — separate key, separate intent, because discard destroys working-tree changes. Acceptance: staging every hunk of a file leaves it fully staged and unstaging the last returns it to unstaged; a mixed file reports partial, never a boolean; discard emits a distinct intent; the component performs no I/O; exhausted:true over two files, three hunks, one partially staged. See docs/PLAN.md 'Package M'."
+deps = ["node-j", "node-k"]
+parallel_ok = false
+context = []
+status = "pending"
+kind = "phase"
+
+[tree.subtask.caveat_policy]
+fs_read = "none"
+fs_write = "none"
+exec = "none"
+net = "none"

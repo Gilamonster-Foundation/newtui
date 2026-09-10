@@ -4,6 +4,11 @@ This is the inventory of what the crate ships. Each entry names the host data
 it needs, its input domain, its degenerate edge, and the observable properties
 that a reimplementation must satisfy.
 
+The [widget catalog](WIDGETS.md) is the front door — the available / donated /
+planned split with donor links. This catalogue goes deeper: the acceptance
+properties and runnable examples for each shipped component. How both families
+are tested is the [testing model](testing-model.md).
+
 <!-- component: settings_panel -->
 ## `settings_panel`
 
