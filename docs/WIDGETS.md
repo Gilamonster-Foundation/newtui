@@ -8,6 +8,12 @@ collected into a reusable Rust library.
 **Donor widgets** below exist in the linked harnesses and await extraction here.
 **Planned widgets** describe additions that have not landed in this library.
 
+This is the front door — what is available, donated, or only planned. For the
+deep inventory of what the crate actually ships today, with per-component
+acceptance properties and runnable examples, see the [component and widget
+catalogue](CATALOG.md); for how components and widgets are both tested, the
+[testing model](testing-model.md).
+
 ## Featured: heat graphs and meters
 
 Shawn's favorites from [gila-monitor-tui's metrics module][metrics].

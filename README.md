@@ -40,4 +40,42 @@ Exploration covers the supplied keys and states distinguished by your
 fingerprint; `report.is_clean()` also requires the search to finish within its
 limits.
 
+A component is three declarations over keys, with no I/O. This block is a
+doctest, so it compiles and runs on every `cargo test` — an example nobody
+compiles is a claim, not a check.
+
+```rust
+use newtui::{properties, Component, Explorer, Fingerprint, Flow, Key, Row, View};
+
+struct Volume { level: u8 }
+
+impl Component for Volume {
+    fn handle(&mut self, key: Key) -> Flow {
+        match key {
+            Key::Left => { self.level = self.level.saturating_sub(10); Flow::Stay }
+            Key::Right => { self.level = (self.level + 10).min(100); Flow::Stay }
+            Key::Enter => Flow::Close(true),
+            Key::Esc => Flow::Close(false),
+            _ => Flow::Stay,
+        }
+    }
+
+    fn view(&self) -> View {
+        View::titled("volume")
+            .row(Row::new("level", self.level.to_string()).adjustable().selected())
+    }
+
+    fn fingerprint(&self) -> Fingerprint { Fingerprint::of_view(&self.view()) }
+}
+
+let report = Explorer::new(Key::navigation())
+    .explore(|| Volume { level: 50 }, &[
+        &properties::selection_is_always_in_range(),
+        &properties::escape_always_closes_without_applying(),
+        &properties::only_adjustable_rows_move(),
+    ]);
+
+assert!(report.is_clean(), "{report}");
+```
+
 [Development plan](docs/PLAN.md) · Rust 1.88+ · [Apache-2.0](LICENSE)

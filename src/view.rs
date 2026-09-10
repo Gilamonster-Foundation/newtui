@@ -13,7 +13,7 @@
 //! bend into this one — but three panels bent into it exactly.
 
 /// One line of a component's view.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Row {
     /// What the row is called.
     pub label: String,
@@ -69,7 +69,7 @@ impl Row {
 }
 
 /// Everything a component currently shows.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct View {
     /// What the component is called.
     pub title: String,

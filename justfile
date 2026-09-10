@@ -2,9 +2,23 @@
 #
 # `just check` is the full local gate and mirrors .github/workflows/ci.yml.
 # Keep the three in step: this file, that workflow, and .githooks/pre-push.
+#
+# The FORMAL layer (spec/tla/, formal/) mirrors .github/workflows/formal.yml.
+# It splits on toolchain cost, and the split is written down in all three
+# places — here, the hook header, and that workflow's header:
+#
+#   `no-sorry` and `model` are in `check` and in the push hook. Both are
+#   cheap — a grep and a cargo run — and there is no excuse for a
+#   milliseconds-long gate being CI-only.
+#
+#   `lean`, `lean-mutations`, `tla` and `mutations` are NOT in `check`. They
+#   need a Lean toolchain and a pinned 10 MB tla2tools.jar, and requiring both
+#   in every developer's pre-push would be disproportionate. They are CI-only
+#   BY DESIGN, the way newt-agent's formal.yml records `HOOK PARITY:
+#   intentionally NONE`. Run them locally with `just formal`.
 
 # Format, lint, test and document — the whole gate.
-check: fmt clippy test doc leaf
+check: fmt clippy test doc leaf coverage binding binding-coverage python-coverage rust-mutations no-sorry model
 
 # Verify formatting (does not modify files).
 fmt:
@@ -31,12 +45,113 @@ doc:
 leaf:
     cargo test --test leaf
 
-# Regenerate every demo GIF from its tape (needs `vhs`).
+# The coverage floor. IN `check`, and so in the push hook, because the
+# instrumented build takes 13 seconds on this crate — the "disproportionate in
+# every developer's pre-push" argument the hook header makes about Lean and a
+# JVM does not reach this far, and a floor nobody runs locally is a floor that
+# is discovered in CI.
+#
+# 80% is a FLOOR, not a target. main sits near 94% and CRAFT-08 asks for
+# near-total on the production view; the gate exists to catch a cliff, not to
+# bless the fourteen points between. --all-features and not both settings:
+# the ratatui path is strictly more code, and instrumenting the crate twice to
+# re-measure the same core would double the cost of the gate for nothing.
+coverage:
+    cargo llvm-cov --all-features --summary-only --fail-under-lines 80
+
+# PyO3 remains outside the default members, so each binding command names its
+# package. That explicitness is what keeps a plain core build leaf-only.
+binding:
+    cargo clippy -p newtui-py --all-targets -- -D warnings
+    cargo test -p newtui-py
+    RUSTDOCFLAGS="-D warnings" cargo doc -p newtui-py --no-deps
+
+# Rust coverage for the binding adapter itself. Python drives the same surface
+# below, but only the embedded-interpreter tests make LLVM see through PyO3.
+binding-coverage:
+    cargo llvm-cov -p newtui-py --summary-only --fail-under-lines 80 --ignore-filename-regex 'newtui-py/tests/'
+
+# Build the extension into the selected Python environment, execute both API
+# directions and every Python documentation fence, then enforce Python's own
+# source-line floor. Set PYTHON to select an interpreter explicitly.
+python-coverage:
+    scripts/check-python.sh
+
+# Every Rust guard has a defect it provably catches. Named target because
+# tests/mutations.rs is `test = false` — it builds a mutated copy of the crate
+# per row, so it must not run inside every ordinary `cargo test`.
+#
+# NAMED `rust-mutations`, not `mutations`, and the reason is a near miss worth
+# recording: this recipe and the TLA+ one below were both called `mutations` on
+# two branches that had to merge. `just` would have taken one definition and
+# the other suite would have vanished from `check` in silence — a whole
+# assurance layer deleted by a name collision, which is the exact failure mode
+# both suites exist to catch.
+rust-mutations:
+    cargo test --test mutations -- --nocapture
+
+# --- the formal layer -------------------------------------------------------
+
+# The text half of the proof gate: no `sorry`, no `native_decide`, no `axiom`
+# declaration, and every theorem inside the `#print axioms` audit. `lake build`
+# exits 0 on all four, so this grep is the only thing between them and a green
+# badge. Pure text, milliseconds, no toolchain — which is why it is in `check`
+# and in the push hook.
+no-sorry:
+    scripts/check-lean-proofs.sh
+
+# The bridge. Regenerates spec/tla/lib/RustObs.tla from a real `Explorer::explore`
+# run and fails on drift. Needs cargo and nothing else, so it is in `check`:
+# a change to src/explore.rs that moves a report counter must not reach CI
+# before the model has been asked to agree with it.
+model:
+    scripts/check-model.sh
+
+# Rewrite spec/tla/lib/RustObs.tla after a deliberate change to the explorer. EXPECT
+# TLC to go red on ModelMatchesRust afterwards until the model agrees — that red
+# is the point of the gate.
+regen-model:
+    scripts/check-model.sh --write
+
+# Machine-check every theorem (needs a Lean toolchain; see formal/README.md).
+lean:
+    cd formal && lake build
+
+# Every proof gate gets a mutation that turns it red, EXECUTED — including the
+# one only `#guard_msgs` can catch, where a theorem picks up `Classical.choice`
+# from core and no grep can see it. Needs the Lean toolchain.
+lean-mutations:
+    scripts/check-lean-mutations.sh
+
+# Model-check every green configuration (needs java; check.sh fetches the
+# pinned, checksum-verified tla2tools.jar).
+tla:
+    spec/tla/check.sh
+    spec/tla/test-check.sh
+
+# Run every TLA+ mutation and assert the verdict it declares. An invariant with
+# no mutation that turns it red is decoration.
+tla-mutations:
+    scripts/check-mutations.sh
+
+# Everything in the formal layer. Not part of `check` — see the header.
+formal: no-sorry lean lean-mutations tla tla-mutations model
+
+# Regenerate both animated formats from each tape (needs `vhs` and `ffmpeg`).
 demos:
     #!/usr/bin/env bash
     set -euo pipefail
-    for tape in demos/*.tape; do vhs "$tape"; done
+    cargo build --quiet --example demo --features ratatui
+    for tape in demos/*.tape; do
+        vhs "$tape"
+        gif="${tape%.tape}.gif"
+        # APNG derives from the GIF recording, so the two formats cannot show
+        # different component behaviour.
+        ffmpeg -y -i "$gif" -plays 0 -f apng "${tape%.tape}.png"
+    done
 
-# Regenerate one demo.
+# Regenerate both formats for one demo.
 demo name:
+    cargo build --quiet --example demo --features ratatui
     vhs demos/{{name}}.tape
+    ffmpeg -y -i demos/{{name}}.gif -plays 0 -f apng demos/{{name}}.png
