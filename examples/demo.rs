@@ -5,7 +5,7 @@ use std::io;
 #[allow(dead_code)]
 #[path = "support/fixtures.rs"]
 mod fixtures;
-use fixtures::{notice_text, settings_seed, DiffPreview, Kind as WidgetKind, Scenario};
+use fixtures::{notice_text, settings_seed, BspPreview, DiffPreview, Kind as WidgetKind, Scenario};
 use newtui::components::settings_panel::SettingsPanel;
 use newtui::{ratatui_lines, Component, Flow, Key, Tone, View, WidgetOutput};
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -181,6 +181,7 @@ struct WidgetDemo {
     at: usize,
     scenario: Scenario,
     diff: DiffPreview,
+    bsp: BspPreview,
     notice_index: usize,
 }
 
@@ -192,12 +193,13 @@ impl WidgetDemo {
             at: 0,
             scenario: Scenario::Normal,
             diff: DiffPreview::default(),
+            bsp: BspPreview::default(),
             notice_index: 0,
         }
     }
 
     fn handle(&mut self, event: KeyEvent) -> bool {
-        if self.kind == WidgetKind::Diff {
+        if matches!(self.kind, WidgetKind::Diff | WidgetKind::Bsp) {
             if event
                 .modifiers
                 .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
@@ -206,7 +208,10 @@ impl WidgetDemo {
                     && event.modifiers.contains(KeyModifiers::CONTROL);
             }
             match event.code {
-                KeyCode::Left | KeyCode::Right if event.modifiers.contains(KeyModifiers::SHIFT) => {
+                KeyCode::Left | KeyCode::Right
+                    if self.kind == WidgetKind::Diff
+                        && event.modifiers.contains(KeyModifiers::SHIFT) =>
+                {
                     self.diff
                         .handle(map_key(event).expect("an arrow maps to a key"));
                     return false;
@@ -219,18 +224,26 @@ impl WidgetDemo {
                         0
                     };
                     self.diff = DiffPreview::default();
+                    self.bsp = BspPreview::default();
                     self.notice_index = 0;
                 }
                 KeyCode::Char('r') | KeyCode::F(4) => {
                     self.diff = DiffPreview::default();
+                    self.bsp = BspPreview::default();
                     self.notice_index = 0;
                     self.at = 0;
                 }
-                KeyCode::Char('n') => self.notice_index = self.notice_index.wrapping_add(1),
+                KeyCode::Char('n') if self.kind == WidgetKind::Diff => {
+                    self.notice_index = self.notice_index.wrapping_add(1)
+                }
                 KeyCode::Left | KeyCode::Right => {}
                 _ => {
                     if let Some(key) = map_key(event) {
-                        self.diff.handle(key);
+                        if self.kind == WidgetKind::Bsp {
+                            self.bsp.handle(key);
+                        } else {
+                            self.diff.handle(key);
+                        }
                     }
                 }
             }
@@ -260,6 +273,12 @@ impl WidgetDemo {
                     self.diff.geometry_name(),
                     self.scenario.name()
                 ))
+            } else if self.kind == WidgetKind::Bsp {
+                Line::from(format!(
+                    "{} / {} · {width} columns",
+                    self.bsp.size_name(),
+                    self.scenario.name()
+                ))
             } else {
                 Line::from(vec![
                     Span::styled("requested width: ", Style::default().fg(Color::DarkGray)),
@@ -275,12 +294,18 @@ impl WidgetDemo {
             layout[0],
         );
         frame.render_widget(Paragraph::new(lines).block(self.chart_block()), chart_area);
-        if self.kind == WidgetKind::Diff {
+        if matches!(self.kind, WidgetKind::Diff | WidgetKind::Bsp) {
             frame.render_widget(
-                Paragraph::new(
+                Paragraph::new(if self.kind == WidgetKind::Bsp {
+                    self.bsp.status(
+                        self.scenario,
+                        u16::try_from(width).expect("demo width fits u16"),
+                        chart_height,
+                    )
+                } else {
                     notice_text(&output, self.notice_index)
-                        .unwrap_or_else(|| self.scenario.note(self.kind).to_string()),
-                )
+                        .unwrap_or_else(|| self.scenario.note(self.kind).to_string())
+                })
                 .style(Style::default().fg(Color::Yellow))
                 .wrap(Wrap { trim: false }),
                 layout[2],
@@ -289,6 +314,8 @@ impl WidgetDemo {
         frame.render_widget(
             Paragraph::new(if self.kind == WidgetKind::Diff {
                 "←→ size · ↑↓ rows · Shift-←→ columns · g layout · e context\nf fixture · n notice · Home scroll reset · r reset · q quit"
+            } else if self.kind == WidgetKind::Bsp {
+                "Tab divider · ↑↓ ratio · s shrink/restore · x reject NaN\n←→ size · f fixture · r reset · q quit"
             } else {
                 "← narrower   → wider   q quit"
             })
@@ -301,6 +328,8 @@ impl WidgetDemo {
     fn output(&self, width: usize) -> WidgetOutput {
         if self.kind == WidgetKind::Diff {
             self.diff.output(self.scenario, width, 16)
+        } else if self.kind == WidgetKind::Bsp {
+            self.bsp.output(self.scenario, width, 16)
         } else {
             self.kind
                 .output(self.scenario, width)
@@ -309,19 +338,19 @@ impl WidgetDemo {
     }
 
     fn layout(&self, area: Rect, chart_height: u16) -> [Rect; 4] {
-        let is_diff = self.kind == WidgetKind::Diff;
+        let is_rich = matches!(self.kind, WidgetKind::Diff | WidgetKind::Bsp);
         let host = centered(
             area,
-            if is_diff { 106 } else { 42 },
-            chart_height.saturating_add(if is_diff { 8 } else { 4 }),
+            if is_rich { 106 } else { 42 },
+            chart_height.saturating_add(if is_rich { 8 } else { 4 }),
         );
         let parts = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(1),
                 Constraint::Length(chart_height.saturating_add(2)),
-                Constraint::Length(if is_diff { 3 } else { 0 }),
-                Constraint::Length(if is_diff { 2 } else { 1 }),
+                Constraint::Length(if is_rich { 3 } else { 0 }),
+                Constraint::Length(if is_rich { 2 } else { 1 }),
             ])
             .split(host);
         [parts[0], parts[1], parts[2], parts[3]]
@@ -356,6 +385,7 @@ pub(crate) fn assert_recorded_demos_render_content() {
         "bar",
         "core_grid",
         "diff",
+        "bsp",
     ] {
         let Some(Demo::Widget(mut demo)) = Demo::named(name) else {
             panic!("the `{name}` recording names a widget demo");
@@ -368,15 +398,23 @@ pub(crate) fn assert_recorded_demos_render_content() {
             // The short tapes expose six rows; the taller recordings have room
             // for their four-row widgets. Keeping the short case constrained is
             // what exercises the release artifact instead of a roomier fiction.
-            let recorder_height = if name == "diff" {
+            let recorder_height = if matches!(name, "diff" | "bsp") {
                 28
             } else if height == 1 {
                 6
             } else {
                 12
             };
-            let frame_area =
-                Rect::new(0, 0, if name == "diff" { 120 } else { 64 }, recorder_height);
+            let frame_area = Rect::new(
+                0,
+                0,
+                if matches!(name, "diff" | "bsp") {
+                    120
+                } else {
+                    64
+                },
+                recorder_height,
+            );
             let backend = TestBackend::new(frame_area.width, frame_area.height);
             let mut terminal = Terminal::new(backend).expect("the test terminal is available");
             terminal
@@ -488,6 +526,70 @@ fn diff_demo_keys_keep_the_real_widget_visible_across_layouts_and_fixtures() {
 #[cfg(test)]
 fn area_has_content(buffer: &ratatui::buffer::Buffer, area: Rect) -> bool {
     (area.y..area.bottom()).any(|y| (area.x..area.right()).any(|x| buffer[(x, y)].symbol() != " "))
+}
+
+#[cfg(test)]
+#[test]
+fn bsp_demo_keys_restore_the_same_cells_and_keep_geometry_status_visible() {
+    use ratatui::{backend::TestBackend, Terminal};
+    let mut demo = WidgetDemo::new(WidgetKind::Bsp, WidgetKind::Bsp.demo_widths());
+    let press = |demo: &mut WidgetDemo, code| demo.handle(KeyEvent::new(code, KeyModifiers::NONE));
+    for scenario in Scenario::ALL {
+        assert_eq!(demo.scenario, scenario);
+        for _ in 0..4 {
+            press(&mut demo, KeyCode::Right);
+        }
+        for width in WidgetKind::Bsp.demo_widths() {
+            assert_eq!(demo.widths[demo.at], *width);
+            let original = demo.output(*width);
+            press(&mut demo, KeyCode::Char('s'));
+            assert_eq!(demo.bsp.size_name(), "half width");
+            press(&mut demo, KeyCode::Char('s'));
+            assert_eq!(demo.output(*width), original);
+            let mut terminal = Terminal::new(TestBackend::new(120, 28)).unwrap();
+            terminal.draw(|frame| demo.render(frame)).unwrap();
+            let buffer = terminal.backend().buffer();
+            let area = demo
+                .chart_block()
+                .inner(demo.chart_area(buffer.area, *width, 16));
+            for (row, expected) in original.lines.iter().enumerate() {
+                let actual: String = (area.x..area.right())
+                    .map(|column| buffer[(column, area.y + u16::try_from(row).unwrap())].symbol())
+                    .collect();
+                assert_eq!(actual, expected.text());
+            }
+            let note = demo.layout(buffer.area, 16)[2];
+            let actual: String = (note.y..note.bottom())
+                .flat_map(|row| {
+                    (note.x..note.right()).map(move |column| buffer[(column, row)].symbol())
+                })
+                .collect();
+            for line in demo
+                .bsp
+                .status(scenario, u16::try_from(*width).unwrap(), 16)
+                .lines()
+            {
+                assert!(
+                    actual.contains(line),
+                    "status stays outside even a one-cell preview: {actual:?}"
+                );
+            }
+            press(&mut demo, KeyCode::Left);
+        }
+        press(&mut demo, KeyCode::Char('f'));
+    }
+    press(&mut demo, KeyCode::Tab);
+    press(&mut demo, KeyCode::Up);
+    assert_eq!(demo.bsp.changed(Scenario::Normal, 88, 16), vec![10, 30]);
+    press(&mut demo, KeyCode::Char('x'));
+    assert!(demo.bsp.changed(Scenario::Normal, 88, 16).is_empty());
+    let before = demo.bsp.clone();
+    assert!(!demo.handle(KeyEvent::new(KeyCode::Char('s'), KeyModifiers::ALT)));
+    assert_eq!(demo.bsp, before);
+    press(&mut demo, KeyCode::Char('r'));
+    assert_eq!(demo.bsp, BspPreview::default());
+    assert!(demo.handle(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)));
+    assert!(press(&mut demo, KeyCode::Char('q')));
 }
 
 fn tone_style(tone: Tone) -> Style {

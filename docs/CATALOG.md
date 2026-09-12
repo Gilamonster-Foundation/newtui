@@ -1,4 +1,4 @@
-# Component and widget catalogue
+# Component, widget, and layout catalogue
 
 This is the inventory of what the crate ships. Each entry names the host data
 it needs, its input domain, its degenerate edge, and the observable properties
@@ -6,7 +6,7 @@ that a reimplementation must satisfy.
 
 The [widget catalog](WIDGETS.md) is the front door — the available / donated /
 planned split with donor links. This catalogue goes deeper: the acceptance
-properties and runnable examples for each shipped component. How both families
+properties and runnable examples for each shipped piece. How the families
 are tested is the [testing model](testing-model.md).
 
 ## Diff data and text
@@ -29,6 +29,46 @@ assert_eq!(changes.to_markdown(), format!("```diff\n{patch}```\n"));
 
 No widget or interactive demo is claimed by this model-only entry; those are
 the remaining #19 surfaces.
+
+<!-- layout: bsp -->
+## `bsp` — panel layout
+
+<!-- demo: bsp = bsp -->
+Demo: [tape](../demos/bsp.tape) · [GIF](../demos/bsp.gif) · [animated PNG](../demos/bsp.png)
+
+Live catalog: [normal](widgets/generated/bsp.png) · [narrow](widgets/generated/bsp-narrow.png) · [rejected edit](widgets/generated/bsp-error.png) · [recording inputs](widgets/generated/BSP-CAPTURES.md)
+
+A pure binary partition of host-owned pane IDs. The host supplies the area,
+split direction, and finite ratio; the library derives rectangles and dividers
+without storing cell sizes. Each split reserves one divider cell. NaN and
+infinity are rejected unchanged; finite ratios clamp to 0.1 through 0.9.
+
+```rust
+use newtui::layout::{changed_panes, Direction, LayoutTree, Rect};
+
+let mut layout = LayoutTree::single(10);
+assert!(layout.split(10, 20, Direction::Horizontal, 0.8));
+let area = Rect { x: 0, y: 0, width: 200, height: 24 };
+let large = layout.rects(area);
+let small = layout.rects(Rect { width: 100, ..area });
+assert_eq!((large[0].1.width, large[1].1.width), (159, 40));
+assert_eq!((small[0].1.width, small[1].1.width), (79, 20));
+assert_eq!(layout.rects(area), large);
+assert_eq!(changed_panes(&large, &small), vec![10, 20]);
+assert!(layout.set_ratio_at(&layout.splits(area)[0].path, 0.5));
+```
+
+The [geometry contract](layout.md) defines half-open saturated coordinate edges,
+zero-area pane/path preservation, ratio rounding, and precise changed-pane
+projection. Nine tests and two exhaustive 350-state walks cover its bounded
+domain, with executable negative controls. This is package F's geometry slice;
+dashboard behavior and Gilamonster cockpit adoption remain later work.
+
+Launch `just catalog --item bsp`. Enter focuses the preview; Tab chooses a
+divider, up/down adjusts its ratio, `s` shrinks/restores, and `x` demonstrates a
+rejected NaN edit. The host composes existing widget fixtures inside the returned
+rectangles and shows complete geometry status outside tiny previews. No Python
+layout binding is claimed by this Rust primitive.
 
 <!-- component: settings_panel -->
 ## `settings_panel`
