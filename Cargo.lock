@@ -259,6 +259,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "newtui-catalog"
+version = "0.1.0"
+dependencies = [
+ "newtui",
+ "ratatui",
+]
+
+[[package]]
 name = "newtui-py"
 version = "0.1.0"
 dependencies = [

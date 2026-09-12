@@ -58,6 +58,14 @@ struct Mutation {
 /// several, when there is more than one way to break the thing it holds.
 const MUTATIONS: &[Mutation] = &[
     Mutation {
+        defect: "the live catalog draws its chrome but drops the widget cells",
+        file: "newtui-catalog/src/lib.rs",
+        from: "Paragraph::new(ratatui_lines(&output, |tone| palette.tone(tone))),",
+        to: "Paragraph::new({ let _ = output; \"\" }),",
+        expect_red: "tests::actual_host_preserves_widget_cells_across_fixtures_and_viewports",
+        cargo_args: &["-p", "newtui-catalog", "--lib"],
+    },
+    Mutation {
         defect: "an undeclared host label glyph disappears into whitespace \
                  instead of leaving a visible, single-column replacement",
         file: "src/widget/output.rs",
@@ -366,6 +374,14 @@ const MUTATIONS: &[Mutation] = &[
         cargo_args: &[],
     },
     Mutation {
+        defect: "the live catalog replaces a shipped widget identifier with an invented one",
+        file: "examples/support/fixtures.rs",
+        from: "id: \"sparkline\",",
+        to: "id: \"omitted-sparkline\",",
+        expect_red: "catalog_lists_every_component_export",
+        cargo_args: &["--features", "ratatui", "--test", "catalog"],
+    },
+    Mutation {
         defect: "the recorder host draws the widget's correctly sized interior as blank space",
         file: "examples/demo.rs",
         from: "        frame.render_widget(Paragraph::new(lines).block(self.chart_block()), chart_area);",
@@ -584,11 +600,19 @@ fn every_registered_guard_is_pinned_by_a_mutation() {
 /// of the comparison, and a scan that read them would agree with itself.
 fn rust_sources(root: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
-    let mut pending: Vec<PathBuf> = ["src", "tests", "newtui-py/src", "newtui-py/tests"]
-        .iter()
-        .map(|dir| root.join(dir))
-        .filter(|dir| dir.is_dir())
-        .collect();
+    let mut pending: Vec<PathBuf> = [
+        "src",
+        "tests",
+        "newtui-py/src",
+        "newtui-py/tests",
+        "newtui-catalog/src",
+        "newtui-catalog/tests",
+        "examples/support",
+    ]
+    .iter()
+    .map(|dir| root.join(dir))
+    .filter(|dir| dir.is_dir())
+    .collect();
 
     while let Some(dir) = pending.pop() {
         let entries = std::fs::read_dir(&dir)
@@ -774,6 +798,7 @@ fn copy_crate(root: &Path, dest: &Path) {
         "examples/demo.rs",
         "examples/python/README.md",
         "newtui-py/Cargo.toml",
+        "newtui-catalog/Cargo.toml",
     ] {
         let parent = dest
             .join(file)

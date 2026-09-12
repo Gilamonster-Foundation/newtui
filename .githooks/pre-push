@@ -38,19 +38,23 @@ if command -v just >/dev/null 2>&1; then
   just check
 else
   echo "pre-push: 'just' not found — running the gate directly." >&2
-  cargo fmt -- --check
+  cargo fmt --all -- --check
   cargo clippy --all-targets --all-features -- -D warnings
   cargo clippy --all-targets --no-default-features -- -D warnings
   cargo clippy -p newtui-py --all-targets -- -D warnings
+  cargo clippy -p newtui-catalog --all-targets -- -D warnings
   cargo test --all-features
   cargo test --no-default-features
   cargo test -p newtui-py
+  cargo test -p newtui-catalog
   RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
   RUSTDOCFLAGS="-D warnings" cargo doc -p newtui-py --no-deps
+  RUSTDOCFLAGS="-D warnings" cargo doc -p newtui-catalog --no-deps
   cargo test --test leaf
   cargo llvm-cov --all-features --summary-only --fail-under-lines 80
   cargo llvm-cov -p newtui-py --summary-only --fail-under-lines 80 \
     --ignore-filename-regex 'newtui-py/tests/'
+  cargo llvm-cov -p newtui-catalog --summary-only --fail-under-lines 80
   scripts/check-python.sh
   cargo test --test mutations -- --nocapture
   scripts/check-lean-proofs.sh
