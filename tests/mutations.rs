@@ -66,6 +66,14 @@ const MUTATIONS: &[Mutation] = &[
         cargo_args: &["-p", "newtui-catalog", "--lib"],
     },
     Mutation {
+        defect: "an unmapped host key is printed as Escape, hiding which event a counterexample delivered",
+        file: "src/key.rs",
+        from: "Self::Other => f.write_str(\"Other\")",
+        to: "Self::Other => f.write_str(\"Esc\")",
+        expect_red: "key::tests::every_named_key_has_a_distinct_rendering_and_escape_identity",
+        cargo_args: &[],
+    },
+    Mutation {
         defect: "an undeclared host label glyph disappears into whitespace \
                  instead of leaving a visible, single-column replacement",
         file: "src/widget/output.rs",

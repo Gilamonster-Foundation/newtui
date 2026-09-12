@@ -546,6 +546,20 @@ activation changes; explored with `exhausted: true`.
 
 ### Package M — the changeset review surface (needs J, K)
 
+#### Diff data and text face (#19, independent of J and K)
+
+`newtui::diff` supplies the shared `ChangeSet` / file / hunk / line model,
+`from_unified`, canonical `to_unified`, and fenced `to_markdown`. This is the
+first #19 slice: a host can supply a diff and show it in chat without a terminal
+or runtime dependencies. The [interchange contract](diff-model.md) names its
+accepted metadata, canonicalization, and error domain. Source stays in this
+model, outside the component `View` and fingerprint.
+
+The display widget, linked `diff_view`, and `changeset` review component remain
+subsequent slices. The host still computes diffs, captures edit preimages and
+postimages, supplies identity and retention, and fulfills Git/index/working-tree
+intents. Parsing a patch does not grant permission to apply it.
+
 The reason the IDE composition exists: **a human reviewing an agent's changes
 before they land.** Everything else in the PyCharm shape is scaffolding around
 this.

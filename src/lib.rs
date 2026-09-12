@@ -37,6 +37,7 @@
 
 mod component;
 pub mod components;
+pub mod diff;
 mod explore;
 mod key;
 mod property;

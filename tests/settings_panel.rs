@@ -42,8 +42,20 @@ fn bounded_settings_panel_is_exhaustively_clean() {
     let seed = bounded_seed();
     let owned = acceptance(&seed);
     let properties: Vec<&dyn Property> = owned.iter().map(AsRef::as_ref).collect();
-    let report =
-        Explorer::new(Key::navigation()).explore(|| SettingsPanel::new(seed.clone()), &properties);
+    let mut keys = Key::navigation();
+    keys.extend([
+        Key::Backspace,
+        Key::Tab,
+        Key::BackTab,
+        Key::Home,
+        Key::End,
+        Key::PageUp,
+        Key::PageDown,
+        Key::Char('q'),
+        Key::Ctrl('q'),
+        Key::Other,
+    ]);
+    let report = Explorer::new(keys).explore(|| SettingsPanel::new(seed.clone()), &properties);
 
     assert!(report.exhausted, "the bounded walk must finish: {report}");
     assert!(report.is_clean(), "{report}");
