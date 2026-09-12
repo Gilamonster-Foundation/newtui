@@ -1,6 +1,6 @@
 # demos
 
-One recorded terminal demo per component or widget, and the tapes that produce them.
+One recorded terminal demo per component, widget, or layout primitive, and the tapes that produce them.
 
 ## Why tapes and not screen recordings
 
@@ -44,7 +44,7 @@ if recording fails. The tapes wait for the live catalog before taking a frame.
 The catalog recordings show ordinary chart data, the one-line meter family,
 a narrow viewport, an unavailable backend and a light palette. Still PNGs live in
 `docs/widgets/generated/`; `catalog/catalog.gif` and `catalog/catalog.png`
-are the animated walkthrough. Those overview captures supplement the eight
+are the animated walkthrough. Those overview captures supplement the nine
 per-piece behavior demos below. They never substitute for exercising apply,
 cancel, overflow and empty input.
 
@@ -67,6 +67,7 @@ and the test are describing the same component:
 | `bar` | a host-formatted value and units yielding space to the bar as width contracts |
 | `core_grid` | two histories retaining their row order while missing core rows stay visibly empty |
 | `diff` | unified, split and stat layouts; folded/expanded context; row windows; narrow fallback; empty and binary changes; long Unicode source with notices outside the preview |
+| `bsp` | real widget panes in ratio geometry; selected dividers; ratio edits; exact shrink/restore; narrow and empty areas; rejected NaN edits with geometry status outside the preview |
 
 The diff demo and catalog share the same parsed fixtures and presentation
 state. In the catalog, launch `--item diff`; optional `--geometry`,
@@ -76,5 +77,13 @@ scroll rows, Shift-left/right scrolls source columns, and `n` cycles complete
 notice messages. Plain left/right changes preview width. F1 returns to browsing.
 The named `demo diff` uses the same controls, with `f` for fixtures and `q` to exit.
 Its tape honors `NEWTUI_DEMO_BIN` when Cargo's target directory is external.
+
+The BSP demo shares geometry and widget samples with `just catalog --item bsp`.
+Optional `--ratio 0.8` and `--shrunk` select deterministic initial states. Enter
+focuses the catalog preview, Tab selects a divider, up/down changes its ratio,
+`s` shrinks/restores, and `x` attempts a rejected NaN edit. Left/right changes
+preview width; F1 returns to browsing. The named `demo bsp` uses the same keys,
+with `f` for fixtures and `q` to exit. Status compares the last demo edit at the
+current viewport size; it never measures pane content or runs reflow timers.
 
 A demo that only shows the happy path is advertising, not documentation.

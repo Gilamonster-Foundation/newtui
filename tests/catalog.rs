@@ -12,6 +12,7 @@ mod fixtures;
 fn catalog_lists_every_component_export() {
     let component_manifest = include_str!("../src/components/mod.rs");
     let widget_manifest = include_str!("../src/widget/mod.rs");
+    let layout_manifest = include_str!("../src/layout/mod.rs");
     let catalog = include_str!("../docs/CATALOG.md");
 
     let exported_components: BTreeSet<&str> = component_manifest
@@ -67,6 +68,25 @@ fn catalog_lists_every_component_export() {
         "a public widget and its catalogue entry must exist together"
     );
 
+    let exported_layouts: BTreeSet<&str> = layout_manifest
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("pub mod "))
+        .filter_map(|rest| rest.strip_suffix(';'))
+        .collect();
+    let listed_layouts: BTreeSet<&str> = catalog
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("<!-- layout: "))
+        .filter_map(|rest| rest.strip_suffix(" -->"))
+        .collect();
+    assert!(
+        !exported_layouts.is_empty(),
+        "the layout manifest yielded no primitive"
+    );
+    assert_eq!(
+        listed_layouts, exported_layouts,
+        "a public layout primitive and its catalogue entry must exist together"
+    );
+
     let demos: BTreeMap<&str, &str> = catalog
         .lines()
         .filter_map(|line| line.trim().strip_prefix("<!-- demo: "))
@@ -85,6 +105,7 @@ fn catalog_lists_every_component_export() {
     let catalogued: BTreeSet<&str> = listed_components
         .iter()
         .chain(&listed_widgets)
+        .chain(&listed_layouts)
         .copied()
         .collect();
     #[cfg(feature = "ratatui")]

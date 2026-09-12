@@ -2,9 +2,64 @@
 
 Generated from the real terminal host using the checked-in tapes below.
 
-Source revision: 518184f0e9698a2990b67abc07bfd59cb9e7c7f1
+Source revision: 1ac4ee8b6211d33efb7ac5e09c63dccd72c439a2
 Recorder: vhs version v0.11.0 (c6af91a)
 Working tree: includes the reviewed changes accompanying these captures.
+
+## demos/catalog/bsp.tape
+
+```text
+Output demos/catalog/bsp.gif
+
+Set Shell "bash"
+Set Width 1500
+Set Height 940
+Set FontSize 18
+Set FontFamily "Menlo"
+Set Theme "Catppuccin Mocha"
+Set CursorBlink false
+Set Padding 16
+
+Hide
+Type `"$NEWTUI_CATALOG_BIN" --item bsp --width 88 --theme dark`
+Enter
+Wait+Screen /LIVE CATALOG/
+Sleep 1s
+Show
+Enter
+Sleep 1s
+Screenshot docs/widgets/generated/bsp.png
+Sleep 1s
+Type "s"
+Sleep 1s
+Type "s"
+Sleep 1s
+Tab
+Up
+Sleep 1s
+Down
+Sleep 1s
+Escape
+Type "rf"
+Enter
+Sleep 1s
+Screenshot docs/widgets/generated/bsp-narrow.png
+Sleep 1s
+Escape
+Type "f"
+Enter
+Sleep 1s
+Escape
+Type "f"
+Enter
+Type "x"
+Sleep 1s
+Screenshot docs/widgets/generated/bsp-error.png
+Sleep 1s
+Escape
+Type "q"
+Sleep 200ms
+```
 
 ## demos/catalog/catalog.tape
 

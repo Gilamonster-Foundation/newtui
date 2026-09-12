@@ -1,5 +1,9 @@
 //! Deterministic, host-owned samples shared by the named demos and live catalog.
 
+#[path = "bsp.rs"]
+mod bsp;
+pub use bsp::BspPreview;
+
 use newtui::components::settings_panel::{Backend, Choice, Model, Setting, SettingsSeed};
 use newtui::diff::{from_unified, ChangeSet, DiffLine};
 use newtui::{
@@ -16,7 +20,7 @@ pub struct Entry {
     pub kind: Kind,
 }
 
-/// Display builders and the one interactive component currently shipped.
+/// Display builders, interactive components, and pure layout primitives.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
     Settings,
@@ -27,6 +31,7 @@ pub enum Kind {
     Bar,
     CoreGrid,
     Diff,
+    Bsp,
 }
 
 /// The registry intentionally names only shipped library exports.
@@ -87,6 +92,13 @@ pub const ENTRIES: &[Entry] = &[
         data: "A parsed change, layout, source window and expanded context runs.",
         kind: Kind::Diff,
     },
+    Entry {
+        id: "bsp",
+        name: "Panel layout",
+        description: "Ratios hold their shape. Shrink, restore, and keep your layout.",
+        data: "Pane IDs, split ratios and an area. Existing widgets supply the samples.",
+        kind: Kind::Bsp,
+    },
 ];
 
 /// Bounded, reproducible input domains; no clocks or metric collectors.
@@ -136,6 +148,13 @@ impl Scenario {
 
     pub fn note(self, kind: Kind) -> &'static str {
         match (self, kind) {
+            (Self::Empty, Kind::Bsp) => "Empty geometry retains every pane ID and split path.",
+            (Self::Error, Kind::Bsp) => {
+                "A nonfinite ratio edit is rejected without changing the layout."
+            }
+            (_, Kind::Bsp) => {
+                "Enter to explore. Tab divider; up/down ratio; s shrink/restore; x reject NaN."
+            }
             (Self::Empty, Kind::Diff) => "An empty change set. No invented source lines.",
             (Self::Error, Kind::Diff) => "A binary-only change has no textual hunks to display.",
             (Self::Long, Kind::Diff) => {
@@ -197,12 +216,13 @@ impl Kind {
             Self::Gauge => "daily budget",
             Self::CoreGrid => "cpu cores",
             Self::Diff => "code changes",
+            Self::Bsp => "panel layout",
         }
     }
 
     pub fn demo_widths(self) -> &'static [usize] {
         match self {
-            Self::Diff => &[88, 44, 12, 1],
+            Self::Diff | Self::Bsp => &[88, 44, 12, 1],
             Self::Butterfly => &[24, 8, 1],
             Self::HeatMeter | Self::Bar => &[24, 10, 4],
             Self::Gauge => &[24, 12, 4],
@@ -244,6 +264,7 @@ impl Kind {
         Some(match self {
             Self::Settings => return None,
             Self::Diff => DiffPreview::default().output(scenario, width, 16),
+            Self::Bsp => BspPreview::default().output(scenario, width, 16),
             Self::Sparkline => sparkline(samples, maximum, width, 4, SparkDirection::Up),
             Self::Butterfly => butterfly(
                 if scenario == Scenario::Normal
