@@ -3,6 +3,7 @@
 mod bar;
 mod butterfly;
 mod core_grid;
+mod diff;
 mod gauge;
 mod heat_meter;
 mod output;
@@ -13,9 +14,14 @@ pub use bar::bar;
 pub use butterfly::butterfly;
 pub use core_grid::core_grid;
 pub use core_grid::CoreSeries;
+pub use diff::diff;
+pub use diff::{ContextRun, DiffData, DiffGeometry};
 pub use gauge::gauge;
 pub use heat_meter::heat_meter;
-pub use output::{Run, Tone, WidgetLine, WidgetOutput, WidgetOutputError};
+pub use output::{
+    NoticeVisibility, Run, Tone, WidgetLine, WidgetNotice, WidgetNoticeKind, WidgetOutput,
+    WidgetOutputError,
+};
 pub use sparkline::sparkline;
 pub use sparkline::SparkDirection;
 

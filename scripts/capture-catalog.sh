@@ -57,10 +57,16 @@ captures=(
   docs/widgets/generated/catalog-light.png
   docs/widgets/generated/catalog-narrow.png
   docs/widgets/generated/catalog-error.png
+  docs/widgets/generated/diff-unified.png
+  docs/widgets/generated/diff-split.png
+  docs/widgets/generated/diff-stat.png
+  docs/widgets/generated/diff-unicode.png
+  docs/widgets/generated/diff-tiny.png
   demos/catalog/catalog.gif
   demos/catalog/light.gif
   demos/catalog/narrow.gif
   demos/catalog/error.gif
+  demos/catalog/diff.gif
 )
 for capture in "${captures[@]}"; do
   if [[ ! -s "$capture_dir/$capture" ]]; then

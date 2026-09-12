@@ -211,6 +211,28 @@ let grid = newtui::core_grid(&cores, 16, 4);
 assert!(grid.validate(16, 4).is_ok());
 ```
 
+<!-- widget: diff -->
+## Diff
+
+<!-- demo: diff = diff -->
+Demo: [tape](../demos/diff.tape) · [GIF](../demos/diff.gif) · [animated PNG](../demos/diff.png)
+
+One supplied change, three cell geometries: unified source lines, paired old/new
+panes, and per-file statistics. Complete line numbers, context folding, binary
+and metadata-only descriptions, and typed notices keep small viewports honest.
+The [diff display contract](diff-widget.md) defines counters and fallback rules;
+original source remains available through the [model and text face](diff-model.md).
+
+```rust
+let changes = newtui::diff::from_unified(
+    "--- a/example\n+++ b/example\n@@ -1 +1 @@\n-old\n+new\n"
+).unwrap();
+let output = newtui::diff(newtui::DiffData::new(&changes), 40, 8);
+assert!(output.validate(40, 8).is_ok());
+let tiny = newtui::diff(newtui::DiffData::new(&changes), 0, 0);
+assert!(!tiny.notices.is_empty());
+```
+
 ## Python exploration cost
 
 The Rust explorer can judge a component implemented in Python. It holds the

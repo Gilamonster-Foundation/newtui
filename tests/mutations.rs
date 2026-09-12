@@ -58,6 +58,22 @@ struct Mutation {
 /// several, when there is more than one way to break the thing it holds.
 const MUTATIONS: &[Mutation] = &[
     Mutation {
+        defect: "a unified new-side gutter borrows the old address on additions",
+        file: "src/widget/diff.rs",
+        from: "address(source.new, new_digits)",
+        to: "address(source.old, new_digits)",
+        expect_red: "diff_geometry_preserves_source_addresses",
+        cargo_args: &["--test", "diff_widget"],
+    },
+    Mutation {
+        defect: "source glyph replacement accounting disappears while sanitized cells still render",
+        file: "src/widget/diff.rs",
+        from: "escaped += replacements(text);",
+        to: "escaped += 0;",
+        expect_red: "diff_escapes_survive_tiny_rectangles",
+        cargo_args: &["--test", "diff_widget"],
+    },
+    Mutation {
         defect: "the live catalog draws its chrome but drops the widget cells",
         file: "newtui-catalog/src/lib.rs",
         from: "Paragraph::new(ratatui_lines(&output, |tone| palette.tone(tone))),",

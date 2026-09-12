@@ -546,6 +546,13 @@ activation changes; explored with `exhausted: true`.
 
 ### Package M — the changeset review surface (needs J, K)
 
+The #19 display slice now supplies `diff(DiffData, width, height)` with Unified,
+Split and Stat geometry. `WidgetOutput::notices` retains typed diagnostics even
+for zero-cell previews, and `Tone` includes change semantics with a
+non-exhaustive palette vocabulary. See [the widget contract](diff-widget.md).
+Source remains outside component views. `diff_view` and `changeset` interaction,
+host capture, staging and destructive discard are still separate work.
+
 #### Diff data and text face (#19, independent of J and K)
 
 `newtui::diff` supplies the shared `ChangeSet` / file / hunk / line model,

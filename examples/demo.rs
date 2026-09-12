@@ -5,14 +5,14 @@ use std::io;
 #[allow(dead_code)]
 #[path = "support/fixtures.rs"]
 mod fixtures;
-use fixtures::{settings_seed, Kind as WidgetKind, Scenario};
+use fixtures::{notice_text, settings_seed, DiffPreview, Kind as WidgetKind, Scenario};
 use newtui::components::settings_panel::SettingsPanel;
-use newtui::{ratatui_lines, Component, Flow, Key, Tone, View};
+use newtui::{ratatui_lines, Component, Flow, Key, Tone, View, WidgetOutput};
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::{DefaultTerminal, Frame};
 
 fn main() -> io::Result<()> {
@@ -179,6 +179,9 @@ struct WidgetDemo {
     kind: WidgetKind,
     widths: &'static [usize],
     at: usize,
+    scenario: Scenario,
+    diff: DiffPreview,
+    notice_index: usize,
 }
 
 impl WidgetDemo {
@@ -187,10 +190,51 @@ impl WidgetDemo {
             kind,
             widths,
             at: 0,
+            scenario: Scenario::Normal,
+            diff: DiffPreview::default(),
+            notice_index: 0,
         }
     }
 
     fn handle(&mut self, event: KeyEvent) -> bool {
+        if self.kind == WidgetKind::Diff {
+            if event
+                .modifiers
+                .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+            {
+                return event.code == KeyCode::Char('c')
+                    && event.modifiers.contains(KeyModifiers::CONTROL);
+            }
+            match event.code {
+                KeyCode::Left | KeyCode::Right if event.modifiers.contains(KeyModifiers::SHIFT) => {
+                    self.diff
+                        .handle(map_key(event).expect("an arrow maps to a key"));
+                    return false;
+                }
+                KeyCode::Char('f') | KeyCode::F(2) => {
+                    self.scenario = self.scenario.next();
+                    self.at = if self.scenario == Scenario::Narrow {
+                        2
+                    } else {
+                        0
+                    };
+                    self.diff = DiffPreview::default();
+                    self.notice_index = 0;
+                }
+                KeyCode::Char('r') | KeyCode::F(4) => {
+                    self.diff = DiffPreview::default();
+                    self.notice_index = 0;
+                    self.at = 0;
+                }
+                KeyCode::Char('n') => self.notice_index = self.notice_index.wrapping_add(1),
+                KeyCode::Left | KeyCode::Right => {}
+                _ => {
+                    if let Some(key) = map_key(event) {
+                        self.diff.handle(key);
+                    }
+                }
+            }
+        }
         match event.code {
             KeyCode::Left => self.at = self.at.saturating_add(1).min(self.widths.len() - 1),
             KeyCode::Right => self.at = self.at.saturating_sub(1),
@@ -202,56 +246,89 @@ impl WidgetDemo {
 
     fn render(&self, frame: &mut Frame<'_>) {
         let width = self.widths[self.at];
-        let output = self
-            .kind
-            .output(Scenario::Normal, width)
-            .expect("a widget demo has output");
+        let output = self.output(width);
         let lines = ratatui_lines(&output, tone_style);
         let chart_height = u16::try_from(output.lines.len()).unwrap_or(u16::MAX);
         let chart_area = self.chart_area(frame.area(), width, chart_height);
         // Header and footer each draw one line. Giving either a padding row
         // would make the recorder steal the only content row from a short widget.
-        let host = centered(frame.area(), 42, chart_height.saturating_add(4));
-        let layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(1),
-                Constraint::Length(chart_height.saturating_add(2)),
-                Constraint::Length(1),
-            ])
-            .split(host);
+        let layout = self.layout(frame.area(), chart_height);
         frame.render_widget(
-            Paragraph::new(Line::from(vec![
-                Span::styled("requested width: ", Style::default().fg(Color::DarkGray)),
-                Span::styled(
-                    width.to_string(),
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .add_modifier(Modifier::BOLD),
-                ),
-            ]))
+            Paragraph::new(if self.kind == WidgetKind::Diff {
+                Line::from(format!(
+                    "{} / {} · {width} columns",
+                    self.diff.geometry_name(),
+                    self.scenario.name()
+                ))
+            } else {
+                Line::from(vec![
+                    Span::styled("requested width: ", Style::default().fg(Color::DarkGray)),
+                    Span::styled(
+                        width.to_string(),
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                ])
+            })
             .alignment(Alignment::Center),
             layout[0],
         );
         frame.render_widget(Paragraph::new(lines).block(self.chart_block()), chart_area);
+        if self.kind == WidgetKind::Diff {
+            frame.render_widget(
+                Paragraph::new(
+                    notice_text(&output, self.notice_index)
+                        .unwrap_or_else(|| self.scenario.note(self.kind).to_string()),
+                )
+                .style(Style::default().fg(Color::Yellow))
+                .wrap(Wrap { trim: false }),
+                layout[2],
+            );
+        }
         frame.render_widget(
-            Paragraph::new("← narrower   → wider   q quit")
+            Paragraph::new(if self.kind == WidgetKind::Diff {
+                "←→ size · ↑↓ rows · Shift-←→ columns · g layout · e context\nf fixture · n notice · Home scroll reset · r reset · q quit"
+            } else {
+                "← narrower   → wider   q quit"
+            })
                 .style(Style::default().fg(Color::DarkGray))
                 .alignment(Alignment::Center),
-            layout[2],
+            layout[3],
         );
     }
 
-    fn chart_area(&self, area: Rect, width: usize, chart_height: u16) -> Rect {
-        let host = centered(area, 42, chart_height.saturating_add(4));
-        let layout = Layout::default()
+    fn output(&self, width: usize) -> WidgetOutput {
+        if self.kind == WidgetKind::Diff {
+            self.diff.output(self.scenario, width, 16)
+        } else {
+            self.kind
+                .output(self.scenario, width)
+                .expect("a widget demo has output")
+        }
+    }
+
+    fn layout(&self, area: Rect, chart_height: u16) -> [Rect; 4] {
+        let is_diff = self.kind == WidgetKind::Diff;
+        let host = centered(
+            area,
+            if is_diff { 106 } else { 42 },
+            chart_height.saturating_add(if is_diff { 8 } else { 4 }),
+        );
+        let parts = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(1),
                 Constraint::Length(chart_height.saturating_add(2)),
-                Constraint::Length(1),
+                Constraint::Length(if is_diff { 3 } else { 0 }),
+                Constraint::Length(if is_diff { 2 } else { 1 }),
             ])
             .split(host);
+        [parts[0], parts[1], parts[2], parts[3]]
+    }
+
+    fn chart_area(&self, area: Rect, width: usize, chart_height: u16) -> Rect {
+        let layout = self.layout(area, chart_height);
         centered(
             layout[1],
             u16::try_from(width.saturating_add(2)).unwrap_or(u16::MAX),
@@ -278,6 +355,7 @@ pub(crate) fn assert_recorded_demos_render_content() {
         "gauge",
         "bar",
         "core_grid",
+        "diff",
     ] {
         let Some(Demo::Widget(mut demo)) = Demo::named(name) else {
             panic!("the `{name}` recording names a widget demo");
@@ -285,16 +363,20 @@ pub(crate) fn assert_recorded_demos_render_content() {
         for at in 0..demo.widths.len() {
             demo.at = at;
             let width = demo.widths[at];
-            let output = demo
-                .kind
-                .output(Scenario::Normal, width)
-                .expect("a widget demo has output");
+            let output = demo.output(width);
             let height = u16::try_from(output.lines.len()).expect("demo output height fits a u16");
             // The short tapes expose six rows; the taller recordings have room
             // for their four-row widgets. Keeping the short case constrained is
             // what exercises the release artifact instead of a roomier fiction.
-            let recorder_height = if height == 1 { 6 } else { 12 };
-            let frame_area = Rect::new(0, 0, 64, recorder_height);
+            let recorder_height = if name == "diff" {
+                28
+            } else if height == 1 {
+                6
+            } else {
+                12
+            };
+            let frame_area =
+                Rect::new(0, 0, if name == "diff" { 120 } else { 64 }, recorder_height);
             let backend = TestBackend::new(frame_area.width, frame_area.height);
             let mut terminal = Terminal::new(backend).expect("the test terminal is available");
             terminal
@@ -341,6 +423,69 @@ pub(crate) fn assert_recorded_demos_render_content() {
 }
 
 #[cfg(test)]
+#[test]
+fn diff_demo_keys_keep_the_real_widget_visible_across_layouts_and_fixtures() {
+    use newtui::DiffGeometry;
+    use ratatui::{backend::TestBackend, Terminal};
+
+    let mut demo = WidgetDemo::new(WidgetKind::Diff, WidgetKind::Diff.demo_widths());
+    let press = |demo: &mut WidgetDemo, code| demo.handle(KeyEvent::new(code, KeyModifiers::NONE));
+    for scenario in Scenario::ALL {
+        assert_eq!(demo.scenario, scenario);
+        for _ in 0..4 {
+            press(&mut demo, KeyCode::Right);
+        }
+        for geometry in [
+            DiffGeometry::Unified,
+            DiffGeometry::Split,
+            DiffGeometry::Stat,
+        ] {
+            assert_eq!(demo.diff.geometry, geometry);
+            for width in WidgetKind::Diff.demo_widths() {
+                assert_eq!(demo.widths[demo.at], *width);
+                let output = demo.output(*width);
+                let mut terminal = Terminal::new(TestBackend::new(120, 28)).unwrap();
+                terminal.draw(|frame| demo.render(frame)).unwrap();
+                let buffer = terminal.backend().buffer();
+                let area = demo
+                    .chart_block()
+                    .inner(demo.chart_area(buffer.area, *width, 16));
+                for (row, expected) in output.lines.iter().enumerate() {
+                    let actual: String = (area.x..area.right())
+                        .map(|column| {
+                            buffer[(column, area.y + u16::try_from(row).unwrap())].symbol()
+                        })
+                        .collect();
+                    assert_eq!(actual, expected.text(), "{geometry:?}/{scenario:?}/{width}");
+                }
+                press(&mut demo, KeyCode::Left);
+            }
+            for _ in 0..4 {
+                press(&mut demo, KeyCode::Right);
+            }
+            press(&mut demo, KeyCode::Char('g'));
+        }
+        press(&mut demo, KeyCode::Char('f'));
+    }
+    press(&mut demo, KeyCode::Char('e'));
+    press(&mut demo, KeyCode::Down);
+    demo.handle(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+    assert!(demo.diff.expanded);
+    assert_eq!((demo.diff.row_offset, demo.diff.column_offset), (1, 4));
+    press(&mut demo, KeyCode::Char('n'));
+    assert_eq!(demo.notice_index, 1);
+    press(&mut demo, KeyCode::Home);
+    assert_eq!((demo.diff.row_offset, demo.diff.column_offset), (0, 0));
+    press(&mut demo, KeyCode::Char('r'));
+    assert_eq!(demo.diff, DiffPreview::default());
+    assert_eq!(demo.notice_index, 0);
+    demo.handle(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::CONTROL));
+    assert_eq!(demo.diff.geometry, DiffGeometry::Unified);
+    assert!(demo.handle(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)));
+    assert!(press(&mut demo, KeyCode::Char('q')));
+}
+
+#[cfg(test)]
 fn area_has_content(buffer: &ratatui::buffer::Buffer, area: Rect) -> bool {
     (area.y..area.bottom()).any(|y| (area.x..area.right()).any(|x| buffer[(x, y)].symbol() != " "))
 }
@@ -354,8 +499,18 @@ fn tone_style(tone: Tone) -> Style {
         Tone::Healthy => Color::Green,
         Tone::Caution => Color::Yellow,
         Tone::Critical => Color::Red,
+        Tone::Added => Color::Green,
+        Tone::Removed => Color::Red,
+        Tone::Context => Color::White,
+        Tone::Hunk => Color::Cyan,
+        _ => Color::White,
     };
-    Style::default().fg(color)
+    let style = Style::default().fg(color);
+    match tone {
+        Tone::Added => style.bg(Color::Rgb(22, 54, 34)),
+        Tone::Removed => style.bg(Color::Rgb(65, 28, 29)),
+        _ => style,
+    }
 }
 
 fn map_key(event: KeyEvent) -> Option<Key> {

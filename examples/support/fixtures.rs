@@ -1,9 +1,10 @@
 //! Deterministic, host-owned samples shared by the named demos and live catalog.
 
 use newtui::components::settings_panel::{Backend, Choice, Model, Setting, SettingsSeed};
+use newtui::diff::{from_unified, ChangeSet, DiffLine};
 use newtui::{
-    bar, butterfly, core_grid, gauge, heat_meter, sparkline, CoreSeries, SparkDirection,
-    WidgetOutput,
+    bar, butterfly, core_grid, gauge, heat_meter, sparkline, ContextRun, CoreSeries, DiffData,
+    DiffGeometry, Key, SparkDirection, WidgetOutput,
 };
 
 /// One shipped piece in the live catalog.
@@ -25,6 +26,7 @@ pub enum Kind {
     Gauge,
     Bar,
     CoreGrid,
+    Diff,
 }
 
 /// The registry intentionally names only shipped library exports.
@@ -78,6 +80,13 @@ pub const ENTRIES: &[Entry] = &[
         data: "Named series with current values, histories and maxima.",
         kind: Kind::CoreGrid,
     },
+    Entry {
+        id: "diff",
+        name: "Code changes",
+        description: "Read a change together, side by side, or as file counts.",
+        data: "A parsed change, layout, source window and expanded context runs.",
+        kind: Kind::Diff,
+    },
 ];
 
 /// Bounded, reproducible input domains; no clocks or metric collectors.
@@ -127,6 +136,14 @@ impl Scenario {
 
     pub fn note(self, kind: Kind) -> &'static str {
         match (self, kind) {
+            (Self::Empty, Kind::Diff) => "An empty change set. No invented source lines.",
+            (Self::Error, Kind::Diff) => "A binary-only change has no textual hunks to display.",
+            (Self::Long, Kind::Diff) => {
+                "Long source and Unicode exercise clipping and reported substitutions."
+            }
+            (Self::Normal | Self::Narrow, Kind::Diff) => {
+                "Enter to explore. g layout, e context, n notice; Home resets scrolling."
+            }
             (Self::Empty, Kind::Settings) => {
                 "No setting rows supplied; model and backend remain host context."
             }
@@ -179,11 +196,13 @@ impl Kind {
             Self::HeatMeter => "disk temperature",
             Self::Gauge => "daily budget",
             Self::CoreGrid => "cpu cores",
+            Self::Diff => "code changes",
         }
     }
 
     pub fn demo_widths(self) -> &'static [usize] {
         match self {
+            Self::Diff => &[88, 44, 12, 1],
             Self::Butterfly => &[24, 8, 1],
             Self::HeatMeter | Self::Bar => &[24, 10, 4],
             Self::Gauge => &[24, 12, 4],
@@ -224,6 +243,7 @@ impl Kind {
         };
         Some(match self {
             Self::Settings => return None,
+            Self::Diff => DiffPreview::default().output(scenario, width, 16),
             Self::Sparkline => sparkline(samples, maximum, width, 4, SparkDirection::Up),
             Self::Butterfly => butterfly(
                 if scenario == Scenario::Normal
@@ -349,6 +369,132 @@ impl Kind {
             }
         })
     }
+}
+
+/// Presentation choices belong to the demo host; the widget stays stateless.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DiffPreview {
+    pub geometry: DiffGeometry,
+    pub row_offset: usize,
+    pub column_offset: usize,
+    pub expanded: bool,
+}
+
+impl DiffPreview {
+    pub fn geometry_name(self) -> &'static str {
+        match self.geometry {
+            DiffGeometry::Unified => "unified",
+            DiffGeometry::Split => "split",
+            DiffGeometry::Stat => "stat",
+            _ => "other",
+        }
+    }
+
+    /// Hosts map shifted horizontal arrows here and keep plain arrows for size.
+    pub fn handle(&mut self, key: Key) {
+        match key {
+            Key::Up => self.row_offset = self.row_offset.saturating_sub(1),
+            Key::Down => self.row_offset = self.row_offset.saturating_add(1),
+            Key::PageUp => self.row_offset = self.row_offset.saturating_sub(8),
+            Key::PageDown => self.row_offset = self.row_offset.saturating_add(8),
+            Key::Left => self.column_offset = self.column_offset.saturating_sub(4),
+            Key::Right => self.column_offset = self.column_offset.saturating_add(4),
+            Key::Home => {
+                self.row_offset = 0;
+                self.column_offset = 0;
+            }
+            Key::Char('g') => {
+                self.geometry = match self.geometry {
+                    DiffGeometry::Unified => DiffGeometry::Split,
+                    DiffGeometry::Split => DiffGeometry::Stat,
+                    _ => DiffGeometry::Unified,
+                };
+                self.row_offset = 0;
+                self.column_offset = 0;
+            }
+            Key::Char('e') => self.expanded = !self.expanded,
+            _ => {}
+        }
+    }
+
+    pub fn output(self, scenario: Scenario, width: usize, height: usize) -> WidgetOutput {
+        let changes = diff_fixture(scenario);
+        let mut expanded = Vec::new();
+        if self.expanded {
+            for (file, change) in changes.files().iter().enumerate() {
+                for (hunk, section) in change.hunks().iter().enumerate() {
+                    for (line, source) in section.lines().iter().enumerate() {
+                        if matches!(source, DiffLine::Context(_))
+                            && !matches!(
+                                line.checked_sub(1).and_then(|at| section.lines().get(at)),
+                                Some(DiffLine::Context(_))
+                            )
+                        {
+                            expanded.push(ContextRun { file, hunk, line });
+                        }
+                    }
+                }
+            }
+        }
+        newtui::diff(
+            DiffData::new(&changes)
+                .geometry(self.geometry)
+                .row_offset(self.row_offset)
+                .column_offset(self.column_offset)
+                .context(1)
+                .expanded(&expanded),
+            width,
+            height,
+        )
+    }
+}
+
+pub fn diff_fixture(scenario: Scenario) -> ChangeSet {
+    const NORMAL: &str = r#"diff --git a/src/session.rs b/src/session.rs
+--- a/src/session.rs
++++ b/src/session.rs
+@@ -1,14 +1,15 @@
+ use crate::Session;
+ // Render the current session.
+ fn render(status: &str) {
+-    let width = 80;
++    let width = viewport.width();
++    let badge = "ready";
+     let title = "Session";
+     let theme = theme::current();
+     let border = theme.border();
+     let padding = 1;
+     let context = 3;
+     let mut rows = Vec::new();
+     rows.reserve(32);
+     rows.push(title);
+-    draw_plain(status);
++    draw_changes(status, width);
+ }
+"#;
+    let source = match scenario {
+        Scenario::Empty => String::new(),
+        Scenario::Error => "diff --git a/assets/logo.bin b/assets/logo.bin\nBinary files a/assets/logo.bin and b/assets/logo.bin differ\n".to_string(),
+        Scenario::Long => format!(
+            "{NORMAL}diff --git a/docs/status.md b/docs/status.md\n--- /dev/null\n+++ b/docs/status.md\n@@ -0,0 +1,2 @@\n+# Status\n+Ready – café 🦎: this deliberately long line keeps its original bytes in the model while the viewport reports substitutions and clipping.\n"
+        ),
+        Scenario::Normal | Scenario::Narrow => NORMAL.to_string(),
+    };
+    from_unified(&source).expect("the checked-in diff fixture parses")
+}
+
+/// A host caption makes diagnostics available even outside a one-cell widget.
+pub fn notice_text(output: &WidgetOutput, index: usize) -> Option<String> {
+    if output.notices.is_empty() {
+        return None;
+    }
+    let at = index % output.notices.len();
+    Some(format!(
+        "Notice {}/{}: {} · n next",
+        at + 1,
+        output.notices.len(),
+        output.notices[at].message()
+    ))
 }
 
 pub fn settings_seed(scenario: Scenario) -> SettingsSeed {
