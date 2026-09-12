@@ -18,7 +18,7 @@
 #   intentionally NONE`. Run them locally with `just formal`.
 
 # Format, lint, test and document — the whole gate.
-check: fmt clippy test doc leaf coverage catalog-check catalog-coverage binding binding-coverage python-coverage rust-mutations no-sorry model
+check: fmt clippy test doc leaf coverage catalog-check catalog-coverage binding binding-coverage python-coverage capture-check rust-mutations no-sorry model
 
 # Verify formatting (does not modify files).
 fmt:
@@ -76,6 +76,10 @@ catalog *args:
 # Record reproducible screenshots and behavior from the real terminal host.
 catalog-capture:
     scripts/capture-catalog.sh
+
+# Recorder boundary checks use fake tools; real VHS remains an optional workflow.
+capture-check:
+    python3 -m unittest discover -s scripts -p test_capture.py
 
 # PyO3 remains outside the default members, so each binding command names its
 # package. That explicitness is what keeps a plain core build leaf-only.
@@ -157,19 +161,8 @@ formal: no-sorry lean lean-mutations tla tla-mutations model
 
 # Regenerate both animated formats from each tape (needs `vhs` and `ffmpeg`).
 demos:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cargo build --quiet --example demo --features ratatui
-    for tape in demos/*.tape; do
-        vhs "$tape"
-        gif="${tape%.tape}.gif"
-        # APNG derives from the GIF recording, so the two formats cannot show
-        # different component behaviour.
-        ffmpeg -y -i "$gif" -plays 0 -f apng "${tape%.tape}.png"
-    done
+    bash scripts/capture-demos.sh
 
 # Regenerate both formats for one demo.
 demo name:
-    cargo build --quiet --example demo --features ratatui
-    vhs demos/{{name}}.tape
-    ffmpeg -y -i demos/{{name}}.gif -plays 0 -f apng demos/{{name}}.png
+    bash scripts/capture-demos.sh {{quote(name)}}

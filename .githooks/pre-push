@@ -56,6 +56,7 @@ else
     --ignore-filename-regex 'newtui-py/tests/'
   cargo llvm-cov -p newtui-catalog --summary-only --fail-under-lines 80
   scripts/check-python.sh
+  python3 -m unittest discover -s scripts -p test_capture.py
   cargo test --test mutations -- --nocapture
   scripts/check-lean-proofs.sh
   scripts/check-model.sh

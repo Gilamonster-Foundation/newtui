@@ -1,3 +1,14 @@
+# Capture reproduction inputs
+
+Generated from the real terminal host using the checked-in tapes below.
+
+Source revision: 518184f0e9698a2990b67abc07bfd59cb9e7c7f1
+Recorder: vhs version v0.11.0 (c6af91a)
+Working tree: includes the reviewed changes accompanying these captures.
+
+## demos/sparkline.tape
+
+```text
 Output demos/sparkline.gif
 
 Set Shell "bash"
@@ -24,3 +35,4 @@ Right
 Sleep 700ms
 Type "q"
 Sleep 300ms
+```
