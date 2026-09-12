@@ -38,6 +38,30 @@ context entries are excluded from folding. Vertical offsets refer to the
 projected rows after folding, and clamp to the final available page. Horizontal
 offsets refer to source codepoints; gutters remain stationary.
 
+## Source locations for host styling
+
+`diff_with_sources(data, width, height)` returns `DiffProjection`: the same
+`WidgetOutput` plus ordered `DiffSourceSpan` entries for visible source cells.
+Projection happens once. Every span identifies its output row and absolute
+column range, the file/hunk/model-line location, the original payload's Unicode
+scalar range, and the old/new side with its actual one-based file line number.
+Rows are relative to the returned viewport; the right pane's columns include
+the left pane and separator. Unified context uses the new side; split context
+has one span on each side.
+
+Only nonempty source fragments have spans. Original spaces and literal `<`/`>`
+characters map normally, as do original codepoints displayed as `?`. Gutters,
+synthetic clip markers, padding, escaped-count suffixes, folded summaries,
+newline annotations, stat bars and footer text do not map. Output and source
+ranges have equal lengths, and spans never overlap. A fully clipped or empty
+line, zero-cell viewport or footer-only view has no source span.
+
+A host can convert the scalar range to UTF-8 tokenizer offsets and apply its
+syntax foreground colors while preserving the diff's semantic backgrounds.
+The library does not tokenize or reset syntax state at each displayed line;
+multiline highlighting and access to complete old/new files remain host work.
+The metadata contains no source text and does not enter a component `View`.
+
 ## Diagnostics are part of the result
 
 `WidgetOutput` now has a public `notices` field. `WidgetOutput::new(lines)`
@@ -79,6 +103,9 @@ tiny heights, extreme offsets, arbitrary source glyphs, EOF annotations,
 insertion/deletion, gaps, large line numbers, folding, binary and metadata-only
 changes. Registered mutations break source numbering and replacement counts;
 the catalog's existing blank-preview mutation protects actual host projection.
+Source-span tests cover substitutions, original spaces, synthetic markers,
+unequal sides, folding, both scroll offsets and EOF annotations. Mutations drop
+all locations, corrupt a file address or omit the right pane's column origin.
 
 These checks do not establish real-PTY repainting, correct host journal keys,
 or coordination between two live prompts. Interactive review components,

@@ -15,7 +15,9 @@ pub use butterfly::butterfly;
 pub use core_grid::core_grid;
 pub use core_grid::CoreSeries;
 pub use diff::diff;
-pub use diff::{ContextRun, DiffData, DiffGeometry};
+pub use diff::{
+    diff_with_sources, ContextRun, DiffData, DiffGeometry, DiffProjection, DiffSide, DiffSourceSpan,
+};
 pub use gauge::gauge;
 pub use heat_meter::heat_meter;
 pub use output::{
