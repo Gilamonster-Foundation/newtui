@@ -89,6 +89,140 @@ fn bounded_numbers_step_through_their_edges_and_report_changes() {
 }
 
 #[test]
+fn oversized_numbers_enter_the_bounded_range_without_truncation() {
+    let mut opening_values = vec![100_002, usize::MAX];
+    if let Ok(above_u32) = usize::try_from(u64::from(u32::MAX) + 3) {
+        opening_values.push(above_u32);
+    }
+    for current in opening_values {
+        for key in [Key::Left, Key::Right] {
+            let mut panel = SettingsPanel::new(SettingsSeed::new(
+                vec![Setting::number(
+                    "detail",
+                    "tool-output detail rows",
+                    current.to_string(),
+                    "auto",
+                    0,
+                    100_000,
+                )],
+                Model::new("active", None),
+                Backend::new(None::<String>),
+            ));
+            assert_eq!(panel.view().rows[0].value, current.to_string());
+            assert_eq!(panel.handle(key), Flow::Stay);
+            assert_eq!(
+                panel.view().rows[0].value,
+                "100000",
+                "{key} from an oversized seed {current} must reach the ceiling"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_host_can_keep_its_acceptance_and_read_current_edits_after_reentry_and_escape() {
+    for open_backends in [false, true] {
+        let mut panel = SettingsPanel::new(bounded_seed());
+        assert!(panel.changes().is_empty());
+        assert_eq!(panel.picked_model(), None);
+        panel.handle(Key::Right);
+        panel.handle(Key::Down);
+        panel.handle(Key::Right);
+        panel.handle(Key::Down);
+        panel.handle(Key::Down);
+        panel.handle(Key::Right);
+        let changes = vec![
+            SettingChange {
+                key: "tenacity".to_string(),
+                value: "steady".to_string(),
+            },
+            SettingChange {
+                key: "rounds".to_string(),
+                value: "1".to_string(),
+            },
+        ];
+        let before_reads = panel.clone();
+        assert_eq!(panel.changes(), changes);
+        assert_eq!(panel.picked_model(), Some("nemotron".to_string()));
+        assert_eq!(panel, before_reads, "pending reads do not accept or edit");
+        assert_eq!(panel.intent(), None);
+
+        if open_backends {
+            panel.handle(Key::Down);
+        }
+        // A containing shell can retain this section's accepted flag while
+        // it lets the user revisit the same component instance.
+        let section_applied = panel.handle(Key::Enter) == Flow::Close(true);
+        let accepted = if open_backends {
+            SettingsIntent::OpenBackends {
+                changes,
+                model: Some("nemotron".to_string()),
+            }
+        } else {
+            SettingsIntent::Apply {
+                changes,
+                model: Some("nemotron".to_string()),
+            }
+        };
+        assert_eq!(panel.intent(), Some(&accepted));
+
+        for _ in 0..(2 + usize::from(open_backends)) {
+            panel.handle(Key::Up);
+        }
+        assert_eq!(panel.view().selected(), Some(1));
+        panel.handle(Key::Left); // Return rounds to the opening value.
+        panel.handle(Key::Up);
+        panel.handle(Key::Right); // Change tenacity again after acceptance.
+        for _ in 0..3 {
+            panel.handle(Key::Down);
+        }
+        panel.handle(Key::Left); // Return the model to the opening value.
+        let current = vec![SettingChange {
+            key: "tenacity".to_string(),
+            value: "relentless".to_string(),
+        }];
+        assert_eq!(panel.changes(), current);
+        assert_eq!(panel.picked_model(), None);
+        assert_eq!(panel.intent(), Some(&accepted), "intent is a snapshot");
+        assert_eq!(panel.handle(Key::Esc), Flow::Close(false));
+        assert_eq!(panel.intent(), None, "Escape still clears the intent");
+        assert!(section_applied, "the host owns its retained acceptance");
+        assert_eq!(panel.changes(), current, "Escape does not reset edits");
+        assert_eq!(panel.picked_model(), None);
+
+        for _ in 0..3 {
+            panel.handle(Key::Up);
+        }
+        panel.handle(Key::Left);
+        panel.handle(Key::Left);
+        assert!(panel.changes().is_empty(), "returning to the seed is clean");
+    }
+}
+
+#[test]
+fn a_host_link_can_read_pending_settings_and_model_without_a_section_acceptance() {
+    let mut panel = SettingsPanel::new(bounded_seed());
+    panel.handle(Key::Right);
+    for _ in 0..3 {
+        panel.handle(Key::Down);
+    }
+    panel.handle(Key::Right);
+    assert_eq!(panel.handle(Key::Esc), Flow::Close(false));
+
+    // The containing shell can authorize a separate link using these values;
+    // reading them does not invent an accepted component intent.
+    assert_eq!(
+        panel.changes(),
+        vec![SettingChange {
+            key: "tenacity".to_string(),
+            value: "steady".to_string(),
+        }]
+    );
+    assert_eq!(panel.picked_model(), Some("nemotron".to_string()));
+    assert_eq!(panel.intent(), None);
+}
+
+#[test]
 fn cancellation_never_returns_an_effect_intent() {
     let mut panel = SettingsPanel::new(bounded_seed());
     panel.handle(Key::Right);
