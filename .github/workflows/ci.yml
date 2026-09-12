@@ -26,6 +26,7 @@ jobs:
       - run: cargo test --all-features
       # Non-default by design, so it cannot disappear behind workspace defaults.
       - run: cargo test -p newtui-py
+      - run: cargo test -p newtui-catalog
 
   clippy:
     name: Lint
@@ -39,6 +40,7 @@ jobs:
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo clippy --all-targets --no-default-features -- -D warnings
       - run: cargo clippy -p newtui-py --all-targets -- -D warnings
+      - run: cargo clippy -p newtui-catalog --all-targets -- -D warnings
 
   fmt:
     name: Format
@@ -48,7 +50,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - run: cargo fmt -- --check
+      - run: cargo fmt --all -- --check
 
   doc:
     name: Docs
@@ -59,6 +61,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
       - run: RUSTDOCFLAGS="-D warnings" cargo doc -p newtui-py --no-deps
+      - run: RUSTDOCFLAGS="-D warnings" cargo doc -p newtui-catalog --no-deps
 
   msrv:
     name: MSRV (Rust 1.88)
@@ -71,6 +74,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --all-targets --all-features --locked
       - run: cargo build -p newtui-py --all-targets --locked
+      - run: cargo build -p newtui-catalog --all-targets --locked
 
   mutations:
     name: Expected-red (every guard catches a real defect)
@@ -100,6 +104,7 @@ jobs:
       # The adapter is outside the default members and needs its own measured
       # floor; embedded Python tests let LLVM observe the PyO3 call paths.
       - run: cargo llvm-cov -p newtui-py --summary-only --fail-under-lines 80 --ignore-filename-regex 'newtui-py/tests/'
+      - run: cargo llvm-cov -p newtui-catalog --summary-only --fail-under-lines 80
 
   python-coverage:
     name: Python API, examples and coverage (80% lines)

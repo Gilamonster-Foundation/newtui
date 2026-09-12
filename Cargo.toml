@@ -4,7 +4,7 @@
 # plain `cargo build` never compiles PyO3 or a component's rendering stack on
 # the harness's account.
 [workspace]
-members = ["newtui-py"]
+members = ["newtui-py", "newtui-catalog"]
 default-members = ["."]
 
 [package]

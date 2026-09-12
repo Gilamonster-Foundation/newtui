@@ -1,5 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+// Use the executable hosts' actual registry, not a second list of claimed
+// catalog entries. The headless configuration still tests the prose contract.
+#[cfg(feature = "ratatui")]
+#[allow(dead_code)]
+#[path = "../examples/support/fixtures.rs"]
+mod fixtures;
+
 // GUARD: catalog_lists_every_component_export — this is a guard; tests/mutations.rs must show it red.
 #[test]
 fn catalog_lists_every_component_export() {
@@ -80,6 +87,19 @@ fn catalog_lists_every_component_export() {
         .chain(&listed_widgets)
         .copied()
         .collect();
+    #[cfg(feature = "ratatui")]
+    {
+        let launchable: BTreeSet<&str> = fixtures::ENTRIES.iter().map(|entry| entry.id).collect();
+        assert_eq!(
+            launchable.len(),
+            fixtures::ENTRIES.len(),
+            "two live catalog entries must not share an identifier"
+        );
+        assert_eq!(
+            launchable, catalogued,
+            "the live catalog must launch every documented public piece, and no invented piece"
+        );
+    }
     let demonstrated: BTreeSet<&str> = demos.keys().copied().collect();
     assert_eq!(
         demonstrated, catalogued,

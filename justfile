@@ -18,11 +18,11 @@
 #   intentionally NONE`. Run them locally with `just formal`.
 
 # Format, lint, test and document — the whole gate.
-check: fmt clippy test doc leaf coverage binding binding-coverage python-coverage rust-mutations no-sorry model
+check: fmt clippy test doc leaf coverage catalog-check catalog-coverage binding binding-coverage python-coverage rust-mutations no-sorry model
 
 # Verify formatting (does not modify files).
 fmt:
-    cargo fmt -- --check
+    cargo fmt --all -- --check
 
 # Lint at every feature setting that ships. `--no-default-features` is the
 # configuration a headless consumer actually gets, so it is linted too.
@@ -58,6 +58,24 @@ leaf:
 # re-measure the same core would double the cost of the gate for nothing.
 coverage:
     cargo llvm-cov --all-features --summary-only --fail-under-lines 80
+
+# The live catalogue is deliberately not a default member. Name it in every
+# gate so its display and input behavior cannot disappear behind that boundary.
+catalog-check:
+    cargo clippy -p newtui-catalog --all-targets -- -D warnings
+    cargo test -p newtui-catalog
+    RUSTDOCFLAGS="-D warnings" cargo doc -p newtui-catalog --no-deps
+
+catalog-coverage:
+    cargo llvm-cov -p newtui-catalog --summary-only --fail-under-lines 80
+
+# Optional host for exploring the actual library; no installation required.
+catalog *args:
+    cargo run -p newtui-catalog -- {{args}}
+
+# Record reproducible screenshots and behavior from the real terminal host.
+catalog-capture:
+    scripts/capture-catalog.sh
 
 # PyO3 remains outside the default members, so each binding command names its
 # package. That explicitness is what keeps a plain core build leaf-only.

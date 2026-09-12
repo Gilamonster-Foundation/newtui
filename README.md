@@ -9,7 +9,7 @@ being collected into a reusable Rust library.
 
 **[Browse the widget catalog →](docs/WIDGETS.md)**
 
-[![Heat graphs and meters from gila-monitor-tui](docs/widgets/metrics-preview.svg)](docs/WIDGETS.md)
+[![Live newtui catalog with the heat graph selected](docs/widgets/generated/catalog.png)](docs/WIDGETS.md)
 
 - **Controls:** settings panels, choosers, and configuration editors.
 - **Charts:** heat graphs, butterfly meters, heat bars, gauges, and machine cards.
@@ -21,11 +21,19 @@ default.
 
 ## Status
 
-The component API and state explorer are implemented. Widgets are being drawn
-from [gila-monitor-tui](https://github.com/hartsock/gilabot/tree/main/gila-monitor-tui/src/ui)
-and the ongoing [Newt TUI refactor](https://github.com/Gilamonster-Foundation/newt-agent).
-The catalog tracks what is available here, what lives in a donor harness,
-and what is planned. Rendering adapters and demos have not landed yet.
+The library ships a settings component, six chart widgets, the state explorer,
+an optional ratatui adapter and Python bindings. The catalog distinguishes these
+from donor and planned components. Every shipped piece has an animated demo.
+
+Explore the real widgets from this checkout:
+
+```sh
+just catalog
+just catalog --item butterfly --scenario narrow
+```
+
+The catalog is an optional host; your application only needs the library.
+Use `just catalog-capture` to reproduce the screenshots and recordings.
 
 ## Use the core
 

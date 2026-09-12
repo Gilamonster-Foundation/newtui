@@ -3,9 +3,11 @@
 Shawn's custom TUI widgets, developed in his terminal harnesses and being
 collected into a reusable Rust library.
 
-**Available in newtui:** the [component API](../src/component.rs),
-[view data](../src/view.rs), and [state explorer](../src/explore.rs).
-**Donor widgets** below exist in the linked harnesses and await extraction here.
+**Available in newtui:** the settings panel; sparkline, butterfly, heat meter,
+gauge, bar and core grid; the optional ratatui adapter; Python bindings; and the
+[component API](../src/component.rs), [view data](../src/view.rs) and
+[state explorer](../src/explore.rs).
+**Donor widgets** identify the originating implementations and remaining extractions.
 **Planned widgets** describe additions that have not landed in this library.
 
 This is the front door — what is available, donated, or only planned. For the
@@ -19,11 +21,24 @@ catalogue](CATALOG.md); for how components and widgets are both tested, the
 Shawn's favorites from [gila-monitor-tui's metrics module][metrics].
 Compact, colored charts built around the `░▒█` glyphs.
 
-![Heat graphs, mirrored history, heat meters, and labeled bars rendered from the donor implementation](widgets/metrics-preview.svg)
+![Live newtui catalog showing the heat graph](widgets/generated/catalog.png)
 
-This preview uses the donor's drawing functions with sample data, captured at
-[`4b8a747`](https://github.com/hartsock/gilabot/commit/4b8a7470a78226f62a82bab40a6738ae2d7ee048).
-It shows existing donor behavior, not a newtui rendering API.
+This is the running catalog, drawing newtui's own builders with reproducible
+host data. Launch `just catalog` from the repository, select a piece, and try
+its normal, narrow, empty, invalid-data or long-content scenario. Enter moves
+into the preview; the catalog's help shows how to return to browsing.
+
+Capture it with `just catalog-capture`. The [recording inputs](widgets/generated/CAPTURES.md)
+fix the fixtures, palette, font and viewport. [Light palette](widgets/generated/catalog-light.png)
+and [narrow terminal](widgets/generated/catalog-narrow.png) captures come from
+the same render path. The [animated walkthrough](../demos/catalog/catalog.gif)
+shows the meter family; individual behavior demos remain in the catalogue.
+The [unavailable backend](widgets/generated/catalog-error.png) fixture keeps
+the active model visible and explains why its dial cannot move.
+
+The earlier [donor preview](widgets/metrics-preview.svg) was rendered from
+gila-monitor-tui at [`4b8a747`](https://github.com/hartsock/gilabot/commit/4b8a7470a78226f62a82bab40a6738ae2d7ee048).
+The source links below preserve that extraction provenance.
 
 | Donor widget | What makes it useful | Source |
 |---|---|---|
@@ -70,11 +85,12 @@ These also exist in [gila-monitor-tui's UI modules][gila-ui].
 ## Controls from Newt
 
 The [Newt TUI refactor][newt] supplies another set of donor components.
-They are not yet available as newtui widgets.
+The generic settings component is available in newtui; the remaining controls
+below are donors for future extraction.
 
 | Donor component | Use it for | Source |
 |---|---|---|
-| Settings panel | Navigate rows, step bounded values, apply or cancel | [`settings_panel.rs`][settings] |
+| Settings panel (extracted) | Navigate rows, step bounded values, apply or cancel | [`settings_panel.rs`][settings] |
 | Backend chooser | Select and configure a provider or connection | [`backend_panel.rs`][backend] |
 | Configuration editor | Edit host-supplied values while the host performs writes | [`config_panel.rs`][config] |
 | Transcript pager | Navigate messages and fold long output | [`transcript_pager.rs`][pager] |

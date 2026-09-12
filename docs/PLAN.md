@@ -8,9 +8,55 @@ point back at this file.
 -->
 # newtui — the plan, and how to split it
 
-`newtui` is a public repo at `Gilamonster-Foundation/newtui`. First commit is
-in and CI is green on all six jobs. This note is the whole plan so the rest can
-be handed out.
+`newtui` is a public repo at `Gilamonster-Foundation/newtui`. This plan travels
+with the code; a package's historical proposal below is not its current status.
+
+## Current delivery and Newt adoption
+
+The library has shipped Package A's settings component, Package B's six chart
+builders and optional rendering adapter, Package D's seven animated demos, and
+Package E's Python face. The [catalogue](CATALOG.md) names their actual APIs.
+Newt's adoption of the extracted settings state and the other host-side
+acceptance requirements remain separate work.
+
+The live catalog is a non-default workspace host: `just catalog`. It renders
+the same fixtures as the named demos, supports selecting and interacting with
+each shipped piece, and lets the operator change scenario, width and palette.
+`just catalog-capture` records its real terminal output with fixed tapes under
+`demos/catalog/`. Those captures replace documentation previews only for pieces
+that the library actually exports. The public export, Markdown entry and live
+catalog registries are checked together; each piece retains its own behavior
+demo as well as appearing in the gallery.
+
+The next train implements every currently open issue and consumes each useful
+slice in Newt before expanding its dependents:
+
+| Issue | Library work | Newt consumer |
+|---|---|---|
+| [#6](https://github.com/Gilamonster-Foundation/newtui/issues/6) | Verify the existing entry/demo/snippet contract; extend it to the launchable catalog | Examples for each adopted piece |
+| [#19](https://github.com/Gilamonster-Foundation/newtui/issues/19) | Diff model and text face, then widget, linked viewer and changeset state | Actual edited-file receipts first; navigable review and precise index operations next |
+| [#18](https://github.com/Gilamonster-Foundation/newtui/issues/18) | Separate optional diagram member; compare current graph prior art with Newt's existing Mermaid extension | Reuse the existing Markdown extension dispatch and source fallback |
+| [#20](https://github.com/Gilamonster-Foundation/newtui/issues/20) | Tree, tabs and linked document browser | Workspace Markdown, headings, search and diagrams |
+| [#21](https://github.com/Gilamonster-Foundation/newtui/issues/21) | Forge-neutral browsing and review components | GitHub and GitLab host adapters, using the shared diff and browser |
+| [#13](https://github.com/Gilamonster-Foundation/newtui/issues/13) | Non-default portable corpus exporter/checker, after the required provenance audit | Rust/Python/Go behavioral conformance; an independent lane |
+
+For each adoption: preserve current behavior in tests, replace one local
+implementation, show the actual edited-file diff and current catalog captures,
+then run both repositories' required gates. Start with shared keys and the
+settings Session state; retain Newt's terminal driver, configuration vocabulary,
+semantic interactions, theme, persistence and authority. Later slices cover
+panel layout, list cursors, the settings shell, psyche and backend management.
+
+Diff visibility does not depend on finishing geometry or the corpus. Capture
+the host's authorized immediate preimage and verified postimage, including
+new files outside Git, and render one model as both text and cells. Keep
+per-edit snapshots distinct from cumulative workspace comparisons. Stage and
+unstage act on Git's index through the host; a working-tree patch applier is
+not a staging API. Discard remains a separate, explicitly confirmed intent.
+
+Use registry releases when available. Until newtui is published, an immutable
+git revision is an independently buildable consumption seam; do not commit
+a dependency on a developer's sibling worktree or a moving branch.
 
 ## What it is
 

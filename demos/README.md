@@ -19,6 +19,30 @@ just demo settings  # both formats for just one
 
 Recorded with [VHS](https://github.com/charmbracelet/vhs).
 
+## Live catalog
+
+`just catalog` opens all shipped pieces in one host. `just catalog-capture`
+builds that host and records the checked-in `catalog/*.tape` sequences. The
+capture script honors `CARGO_TARGET_DIR`; VHS receives Cargo's actual executable
+path. It needs `vhs`, `ttyd`, `ffmpeg` and a Chromium-compatible browser (VHS
+locates or downloads the browser).
+
+The current captures use VHS 0.11.0. Set `VHS_BIN=/path/to/vhs` to select a
+recorder explicitly. VHS 0.12.0 can exit successfully without producing output;
+the capture script checks fresh staged files and preserves previous captures
+if recording fails. The tapes wait for the live catalog before taking a frame.
+
+The catalog recordings show ordinary chart data, the one-line meter family,
+a narrow viewport, an unavailable backend and a light palette. Still PNGs live in
+`docs/widgets/generated/`; `catalog/catalog.gif` and `catalog/catalog.png`
+are the animated walkthrough. Those overview captures supplement the seven
+per-piece behavior demos below. They never substitute for exercising apply,
+cancel, overflow and empty input.
+
+The tapes pin the fixture, palette, font, pixel viewport and key sequence, and
+disable cursor blinking. Inspect every generated frame before replacing a
+documentation image; an empty border is not evidence that a widget rendered.
+
 ## What each demo has to show
 
 Not a feature tour — the BEHAVIOUR the acceptance properties pin, so the GIF
