@@ -9,6 +9,27 @@ planned split with donor links. This catalogue goes deeper: the acceptance
 properties and runnable examples for each shipped component. How both families
 are tested is the [testing model](testing-model.md).
 
+## Diff data and text
+
+`newtui::diff` is a data model and interchange surface, available without
+default features. It holds file paths, metadata, hunks, and source lines supplied
+by a host. It computes no changes and has no review state, terminal, or effects.
+The [interchange contract](diff-model.md) describes the supported domain.
+
+```rust
+use newtui::diff::{from_unified, FileKind};
+
+let patch = "--- /dev/null\n+++ b/example.py\n@@ -0,0 +1 @@\n+print('hello')\n";
+let changes = from_unified(patch).unwrap();
+assert_eq!(changes.files()[0].kind(), FileKind::Added);
+assert_eq!(changes.files()[0].additions(), 1);
+assert_eq!(changes.to_unified(), patch);
+assert_eq!(changes.to_markdown(), format!("```diff\n{patch}```\n"));
+```
+
+No widget or interactive demo is claimed by this model-only entry; those are
+the remaining #19 surfaces.
+
 <!-- component: settings_panel -->
 ## `settings_panel`
 
