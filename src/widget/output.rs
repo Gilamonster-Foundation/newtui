@@ -2,6 +2,7 @@ use std::fmt;
 
 /// Meaning carried by a run of widget text; the host chooses its palette.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
 pub enum Tone {
     /// No visual emphasis.
     #[default]
@@ -18,6 +19,95 @@ pub enum Tone {
     Caution,
     /// A value at or beyond its declared limit.
     Critical,
+    /// Source present on the new side of a change.
+    Added,
+    /// Source present on the old side of a change.
+    Removed,
+    /// Unchanged source shared by both sides.
+    Context,
+    /// A change's hunk header.
+    Hunk,
+}
+
+/// How completely a diagnostic is represented inside the requested rectangle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum NoticeVisibility {
+    /// The complete diagnostic message fits.
+    Full,
+    /// An indicator is visible; the host can show the full diagnostic elsewhere.
+    Indicator,
+    /// No diagnostic cell fits; the host must use the returned data.
+    Hidden,
+}
+
+/// Renderer-independent facts about a widget's presentation, without source text.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum WidgetNoticeKind {
+    /// Undeclared source codepoints replaced before clipping or pane duplication.
+    GlyphReplacements {
+        /// Number of replaced codepoint occurrences.
+        count: usize,
+    },
+    /// Logical rows outside the visible viewport, excluding deliberately folded rows.
+    OmittedRows {
+        /// Rows preceding the viewport.
+        before: usize,
+        /// Rows following the viewport.
+        after: usize,
+    },
+    /// Source rows deliberately summarized by a fold marker.
+    FoldedRows {
+        /// Number of summarized source rows.
+        count: usize,
+    },
+    /// Columns outside a displayed row's source window, summed across its panes.
+    ClippedColumns {
+        /// Zero-based output row.
+        row: usize,
+        /// Columns preceding the source window.
+        before: usize,
+        /// Columns following the source window.
+        after: usize,
+    },
+    /// A requested layout could not fit; names describe layouts, never content.
+    LayoutFallback {
+        /// Requested layout name.
+        requested: &'static str,
+        /// Layout actually used.
+        rendered: &'static str,
+    },
+}
+
+/// A diagnostic survives even when a widget has no display cells.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct WidgetNotice {
+    /// Exact presentation fact, independent of any abbreviated visible notice.
+    pub kind: WidgetNoticeKind,
+    /// Whether its full message, an indicator, or neither fits inside the widget.
+    pub visibility: NoticeVisibility,
+}
+
+impl WidgetNotice {
+    /// Format the complete diagnostic for a host's caption or accessible text.
+    #[must_use]
+    pub fn message(&self) -> String {
+        match self.kind {
+            WidgetNoticeKind::GlyphReplacements { count } => format!("{count} escaped"),
+            WidgetNoticeKind::OmittedRows { before, after } => {
+                format!("{before} rows above, {after} below")
+            }
+            WidgetNoticeKind::FoldedRows { count } => format!("{count} unchanged folded"),
+            WidgetNoticeKind::ClippedColumns { row, before, after } => {
+                format!("row {row}: {before} columns left, {after} right")
+            }
+            WidgetNoticeKind::LayoutFallback {
+                requested,
+                rendered,
+            } => format!("{requested} -> {rendered}"),
+        }
+    }
 }
 
 /// Contiguous text with one semantic tone.
@@ -69,13 +159,18 @@ impl WidgetLine {
 pub struct WidgetOutput {
     /// Lines in top-to-bottom display order.
     pub lines: Vec<WidgetLine>,
+    /// Exact diagnostics, including those with no room for an on-screen notice.
+    pub notices: Vec<WidgetNotice>,
 }
 
 impl WidgetOutput {
     /// Construct output from lines.
     #[must_use]
     pub fn new(lines: Vec<WidgetLine>) -> Self {
-        Self { lines }
+        Self {
+            lines,
+            notices: Vec::new(),
+        }
     }
 
     /// Check the shape and the closed single-column glyph vocabulary.

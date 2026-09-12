@@ -4,7 +4,7 @@ Shawn's custom TUI widgets, developed in his terminal harnesses and being
 collected into a reusable Rust library.
 
 **Available in newtui:** the settings panel; sparkline, butterfly, heat meter,
-gauge, bar and core grid; the optional ratatui adapter; Python bindings; and the
+gauge, bar, core grid and diff display; the optional ratatui adapter; Python bindings; and the
 [component API](../src/component.rs), [view data](../src/view.rs) and
 [state explorer](../src/explore.rs).
 **Donor widgets** identify the originating implementations and remaining extractions.
@@ -15,6 +15,24 @@ deep inventory of what the crate actually ships today, with per-component
 acceptance properties and runnable examples, see the [component and widget
 catalogue](CATALOG.md); for how components and widgets are both tested, the
 [testing model](testing-model.md).
+
+## Edited files
+
+The [diff widget](diff-widget.md) presents unified hunks, split old/new panes,
+and file statistics from the same supplied change. It includes source line
+numbers, context folding and exact notices when content cannot fit. Original
+text remains available in the [model's Markdown face](diff-model.md).
+Open the `diff` entry in the live catalog to try geometry, folding and scrolling.
+
+![Live catalog showing old and new source side by side](widgets/generated/diff-split.png)
+
+Launch `cargo run -p newtui-catalog -- --item diff --width 88`. The same
+recording also shows [unified hunks](widgets/generated/diff-unified.png),
+[file statistics](widgets/generated/diff-stat.png),
+[Unicode and overflow notices](widgets/generated/diff-unicode.png), and
+[a one-column preview with complete notices outside it](widgets/generated/diff-tiny.png).
+The [animated walkthrough](../demos/catalog/diff.gif) and
+[recording inputs](widgets/generated/CAPTURES.md) come from this running host.
 
 ## Featured: heat graphs and meters
 

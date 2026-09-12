@@ -13,6 +13,7 @@ pub struct Palette {
     pub selected: Color,
     pub warm: Color,
     pub danger: Color,
+    pub removed_background: Color,
 }
 
 impl Palette {
@@ -28,6 +29,7 @@ impl Palette {
                 selected: Color::Rgb(43, 65, 49),
                 warm: Color::Rgb(232, 182, 123),
                 danger: Color::Rgb(244, 129, 125),
+                removed_background: Color::Rgb(61, 33, 35),
             },
             Theme::Light => Self {
                 background: Color::Rgb(247, 246, 239),
@@ -39,6 +41,7 @@ impl Palette {
                 selected: Color::Rgb(216, 232, 205),
                 warm: Color::Rgb(147, 79, 22),
                 danger: Color::Rgb(171, 47, 44),
+                removed_background: Color::Rgb(248, 220, 217),
             },
         }
     }
@@ -52,7 +55,16 @@ impl Palette {
             Tone::Healthy => self.accent,
             Tone::Caution => self.warm,
             Tone::Critical => self.danger,
+            Tone::Added => self.accent,
+            Tone::Removed => self.danger,
+            Tone::Context => self.text,
+            Tone::Hunk => self.warm,
+            _ => self.text,
         };
-        Style::default().fg(foreground).bg(self.panel)
+        Style::default().fg(foreground).bg(match tone {
+            Tone::Added => self.selected,
+            Tone::Removed => self.removed_background,
+            _ => self.panel,
+        })
     }
 }

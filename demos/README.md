@@ -35,7 +35,7 @@ if recording fails. The tapes wait for the live catalog before taking a frame.
 The catalog recordings show ordinary chart data, the one-line meter family,
 a narrow viewport, an unavailable backend and a light palette. Still PNGs live in
 `docs/widgets/generated/`; `catalog/catalog.gif` and `catalog/catalog.png`
-are the animated walkthrough. Those overview captures supplement the seven
+are the animated walkthrough. Those overview captures supplement the eight
 per-piece behavior demos below. They never substitute for exercising apply,
 cancel, overflow and empty input.
 
@@ -57,5 +57,15 @@ and the test are describing the same component:
 | `gauge` | the wide caption switching to an honest bar when the caption no longer fits |
 | `bar` | a host-formatted value and units yielding space to the bar as width contracts |
 | `core_grid` | two histories retaining their row order while missing core rows stay visibly empty |
+| `diff` | unified, split and stat layouts; folded/expanded context; row windows; narrow fallback; empty and binary changes; long Unicode source with notices outside the preview |
+
+The diff demo and catalog share the same parsed fixtures and presentation
+state. In the catalog, launch `--item diff`; optional `--geometry`,
+`--row-offset`, `--column-offset` and `--expanded` arguments select a deterministic
+view. Enter focuses its preview: `g` changes layout, `e` expands context, arrows
+scroll rows, Shift-left/right scrolls source columns, and `n` cycles complete
+notice messages. Plain left/right changes preview width. F1 returns to browsing.
+The named `demo diff` uses the same controls, with `f` for fixtures and `q` to exit.
+Its tape honors `NEWTUI_DEMO_BIN` when Cargo's target directory is external.
 
 A demo that only shows the happy path is advertising, not documentation.

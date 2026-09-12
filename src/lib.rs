@@ -54,8 +54,9 @@ pub use view::{Row, View};
 #[cfg(feature = "ratatui")]
 pub use widget::ratatui_lines;
 pub use widget::{
-    bar, butterfly, core_grid, gauge, heat_meter, sparkline, CoreSeries, Run, SparkDirection, Tone,
-    WidgetLine, WidgetOutput, WidgetOutputError,
+    bar, butterfly, core_grid, diff, gauge, heat_meter, sparkline, ContextRun, CoreSeries,
+    DiffData, DiffGeometry, NoticeVisibility, Run, SparkDirection, Tone, WidgetLine, WidgetNotice,
+    WidgetNoticeKind, WidgetOutput, WidgetOutputError,
 };
 
 /// The README's example is compiled and RUN, not read and believed.

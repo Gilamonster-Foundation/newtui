@@ -5,8 +5,10 @@ pub mod fixtures;
 pub mod options;
 mod palette;
 
-use fixtures::{settings_seed, Entry, Kind, Scenario, ENTRIES};
-use newtui::{components::settings_panel::SettingsPanel, ratatui_lines, Component, Flow, Key};
+use fixtures::{notice_text, settings_seed, DiffPreview, Entry, Kind, Scenario, ENTRIES};
+use newtui::{
+    components::settings_panel::SettingsPanel, ratatui_lines, Component, Flow, Key, WidgetOutput,
+};
 use options::{Options, Theme};
 use palette::Palette;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -27,6 +29,8 @@ pub struct Catalog {
     query: String,
     panel: SettingsPanel,
     outcome: Option<String>,
+    diff: DiffPreview,
+    notice_index: usize,
 }
 
 impl Default for Catalog {
@@ -50,6 +54,8 @@ impl Catalog {
             query: String::new(),
             panel: SettingsPanel::new(settings_seed(options.scenario)),
             outcome: None,
+            diff: options.diff,
+            notice_index: 0,
         }
     }
 
@@ -76,6 +82,8 @@ impl Catalog {
     fn reset(&mut self) {
         self.panel = SettingsPanel::new(settings_seed(self.scenario));
         self.outcome = None;
+        self.diff = DiffPreview::default();
+        self.notice_index = 0;
     }
 
     fn cycle_scenario(&mut self) {
@@ -187,6 +195,32 @@ impl Catalog {
                         }
                     }
                 }
+            } else if self
+                .selected_entry()
+                .is_some_and(|entry| entry.kind == Kind::Diff)
+            {
+                if !event
+                    .modifiers
+                    .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+                {
+                    match event.code {
+                        KeyCode::Left | KeyCode::Right
+                            if event.modifiers.contains(KeyModifiers::SHIFT) =>
+                        {
+                            self.diff
+                                .handle(map_key(event).expect("an arrow maps to a key"));
+                        }
+                        KeyCode::Left => self.resize(false),
+                        KeyCode::Right => self.resize(true),
+                        KeyCode::Char('n') => self.notice_index = self.notice_index.wrapping_add(1),
+                        KeyCode::Esc => self.focused = false,
+                        _ => {
+                            if let Some(key) = map_key(event) {
+                                self.diff.handle(key);
+                            }
+                        }
+                    }
+                }
             } else {
                 match event.code {
                     KeyCode::Left => self.resize(false),
@@ -214,6 +248,13 @@ impl Catalog {
             KeyCode::Char('f') => self.cycle_scenario(),
             KeyCode::Char('t') => self.theme = self.theme.next(),
             KeyCode::Char('r') => self.reset(),
+            KeyCode::Char('n')
+                if self
+                    .selected_entry()
+                    .is_some_and(|entry| entry.kind == Kind::Diff) =>
+            {
+                self.notice_index = self.notice_index.wrapping_add(1);
+            }
             KeyCode::Char('q') | KeyCode::Esc => return true,
             _ => {}
         }
@@ -265,6 +306,12 @@ impl Catalog {
         }
         let hint = if self.searching {
             "SEARCH   type to filter · Enter keep · Esc clear"
+        } else if self.focused
+            && self
+                .selected_entry()
+                .is_some_and(|entry| entry.kind == Kind::Diff)
+        {
+            "DIFF ↑↓ rows · Shift-←→ columns · ←→ size\ng layout · e context · n notice · F1 catalog\nF2 fixture · F3 theme · F4 reset · Ctrl-C quit"
         } else if self.focused {
             "INTERACT   F1 catalog · F2 fixture · F3 theme · F4 reset · Ctrl-C quit"
         } else if frame.area().width < 80 {
@@ -385,7 +432,11 @@ impl Catalog {
                 ),
                 Line::from(vec![
                     Span::styled(
-                        format!("{}  ", entry.id),
+                        if entry.kind == Kind::Diff {
+                            format!("{} / {}  ", entry.id, self.diff.geometry_name())
+                        } else {
+                            format!("{}  ", entry.id)
+                        },
                         Style::default().fg(palette.muted),
                     ),
                     Span::styled(
@@ -405,13 +456,12 @@ impl Catalog {
         let block = preview_block(self.focused, palette);
         let inside = block.inner(regions.preview);
         frame.render_widget(block, regions.preview);
+        let mut notice = None;
         if entry.kind == Kind::Settings {
             self.render_settings(frame, inside, palette);
         } else if let Some(content) = self.preview_content_rect(frame.area()) {
-            let output = entry
-                .kind
-                .output(self.scenario, usize::from(content.width))
-                .expect("a display entry produces widget output");
+            let output = self.widget_output(entry, content);
+            notice = notice_text(&output, self.notice_index);
             frame.render_widget(
                 Paragraph::new(ratatui_lines(&output, |tone| palette.tone(tone))),
                 content,
@@ -436,14 +486,17 @@ impl Catalog {
         let note = self
             .outcome
             .as_deref()
+            .or(notice.as_deref())
             .unwrap_or_else(|| self.scenario.note(entry.kind));
         frame.render_widget(
             Paragraph::new(note)
-                .style(Style::default().fg(if self.outcome.is_some() {
-                    palette.warm
-                } else {
-                    palette.muted
-                }))
+                .style(
+                    Style::default().fg(if self.outcome.is_some() || notice.is_some() {
+                        palette.warm
+                    } else {
+                        palette.muted
+                    }),
+                )
                 .wrap(Wrap { trim: false }),
             regions.note,
         );
@@ -574,6 +627,21 @@ impl Catalog {
             height,
         ))
     }
+
+    fn widget_output(&self, entry: &Entry, content: Rect) -> WidgetOutput {
+        if entry.kind == Kind::Diff {
+            self.diff.output(
+                self.scenario,
+                usize::from(content.width),
+                usize::from(content.height),
+            )
+        } else {
+            entry
+                .kind
+                .output(self.scenario, usize::from(content.width))
+                .expect("a display entry produces widget output")
+        }
+    }
 }
 
 fn preview_block(focused: bool, palette: Palette) -> Block<'static> {
@@ -691,12 +759,7 @@ mod tests {
         let Some(area) = catalog.preview_content_rect(buffer.area) else {
             return false;
         };
-        let output = catalog
-            .selected_entry()
-            .unwrap()
-            .kind
-            .output(catalog.scenario, usize::from(area.width))
-            .unwrap();
+        let output = catalog.widget_output(catalog.selected_entry().unwrap(), area);
         if output.lines.len() != usize::from(area.height) {
             return false;
         }
@@ -776,6 +839,174 @@ mod tests {
             !preview_matches(&catalog, &buffer),
             "a blank chart must fail despite intact chrome"
         );
+    }
+
+    #[test]
+    fn diff_layouts_render_real_cells_and_notices_outside_the_smallest_preview() {
+        use newtui::{DiffGeometry, WidgetNoticeKind};
+        for geometry in [
+            DiffGeometry::Unified,
+            DiffGeometry::Split,
+            DiffGeometry::Stat,
+        ] {
+            for scenario in Scenario::ALL {
+                for theme in [Theme::Dark, Theme::Light] {
+                    for (columns, terminal_width) in [(1, 54), (8, 80), (88, 140)] {
+                        let terminal_height = if terminal_width < 80 { 28 } else { 36 };
+                        let mut catalog = Catalog::new(Options {
+                            item: Kind::Diff,
+                            scenario,
+                            theme,
+                            width: columns,
+                            diff: DiffPreview {
+                                geometry,
+                                ..DiffPreview::default()
+                            },
+                            ..Options::default()
+                        });
+                        let mut buffer = render(&catalog, terminal_width, terminal_height);
+                        assert!(preview_matches(&catalog, &buffer));
+                        let area = catalog.preview_content_rect(buffer.area).unwrap();
+                        let output = catalog.widget_output(catalog.selected_entry().unwrap(), area);
+                        if geometry == DiffGeometry::Split && columns == 1 {
+                            assert!(output.notices.iter().any(|notice| matches!(
+                                notice.kind,
+                                WidgetNoticeKind::LayoutFallback {
+                                    requested: "split",
+                                    ..
+                                }
+                            )));
+                        }
+                        for (index, notice) in output.notices.iter().enumerate() {
+                            catalog.notice_index = index;
+                            buffer = render(&catalog, terminal_width, terminal_height);
+                            let note_area = Regions::new(buffer.area).note;
+                            let note_text = |buffer: &Buffer| {
+                                let cells = (note_area.y..note_area.bottom())
+                                    .map(|y| {
+                                        (note_area.x..note_area.right())
+                                            .map(|x| buffer[(x, y)].symbol())
+                                            .collect::<String>()
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(" ");
+                                cells.split_whitespace().collect::<Vec<_>>().join(" ")
+                            };
+                            assert!(
+                                note_text(&buffer).contains(&notice.message()),
+                                "{}",
+                                note_text(&buffer)
+                            );
+                            for y in note_area.y..note_area.bottom() {
+                                for x in note_area.x..note_area.right() {
+                                    buffer[(x, y)].set_symbol(" ");
+                                }
+                            }
+                            assert!(
+                                !note_text(&buffer).contains(&notice.message()),
+                                "the host notice must not pass from widget chrome alone"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn diff_controls_change_presentation_and_preserve_original_source() {
+        use newtui::{DiffGeometry, WidgetNoticeKind};
+        let original = fixtures::diff_fixture(Scenario::Long).to_unified();
+        assert!(original.contains("café 🦎"));
+        let mut catalog = Catalog::new(Options {
+            item: Kind::Diff,
+            scenario: Scenario::Long,
+            ..Options::default()
+        });
+        press(&mut catalog, KeyCode::Char('n'));
+        assert_eq!(catalog.notice_index, 1);
+        press(&mut catalog, KeyCode::Char('r'));
+        press(&mut catalog, KeyCode::Enter);
+        press(&mut catalog, KeyCode::Char('g'));
+        assert_eq!(catalog.diff.geometry, DiffGeometry::Split);
+        press(&mut catalog, KeyCode::Char('g'));
+        assert_eq!(catalog.diff.geometry, DiffGeometry::Stat);
+        press(&mut catalog, KeyCode::Char('g'));
+        assert_eq!(catalog.diff.geometry, DiffGeometry::Unified);
+        press(&mut catalog, KeyCode::Char('e'));
+        assert!(catalog.diff.expanded);
+        let expanded = catalog.diff.output(Scenario::Long, 88, 16);
+        assert!(!expanded
+            .notices
+            .iter()
+            .any(|notice| matches!(notice.kind, WidgetNoticeKind::FoldedRows { .. })));
+        press(&mut catalog, KeyCode::Down);
+        press(&mut catalog, KeyCode::PageDown);
+        press(&mut catalog, KeyCode::PageUp);
+        assert_eq!(catalog.diff.row_offset, 1);
+        press(&mut catalog, KeyCode::Up);
+        catalog.handle(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        assert_eq!(catalog.diff.column_offset, 4);
+        catalog.handle(KeyEvent::new(KeyCode::Left, KeyModifiers::SHIFT));
+        assert_eq!(catalog.diff.column_offset, 0);
+        press(&mut catalog, KeyCode::Down);
+        press(&mut catalog, KeyCode::Home);
+        assert_eq!(catalog.diff.row_offset, 0);
+        press(&mut catalog, KeyCode::Char('n'));
+        assert_eq!(catalog.notice_index, 1);
+        catalog.handle(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::CONTROL));
+        assert_eq!(catalog.diff.geometry, DiffGeometry::Unified);
+        assert!(preview_matches(&catalog, &render(&catalog, 140, 36)));
+        press(&mut catalog, KeyCode::F(4));
+        assert_eq!(catalog.diff, DiffPreview::default());
+        assert_eq!(catalog.notice_index, 0);
+        assert_eq!(
+            fixtures::diff_fixture(Scenario::Long).to_unified(),
+            original
+        );
+        assert!(!press(&mut catalog, KeyCode::Esc));
+        assert!(!catalog.focused);
+    }
+
+    #[test]
+    fn diff_additions_and_removals_use_distinct_real_cell_styles_in_both_themes() {
+        for theme in [Theme::Dark, Theme::Light] {
+            let catalog = Catalog::new(Options {
+                item: Kind::Diff,
+                theme,
+                width: 88,
+                ..Options::default()
+            });
+            let buffer = render(&catalog, 140, 36);
+            let area = catalog.preview_content_rect(buffer.area).unwrap();
+            let output = catalog.widget_output(catalog.selected_entry().unwrap(), area);
+            let palette = Palette::for_theme(theme);
+            assert_ne!(
+                palette.tone(newtui::Tone::Added),
+                palette.tone(newtui::Tone::Removed)
+            );
+            let mut colored = [false; 2];
+            for (row, line) in output.lines.iter().enumerate() {
+                let mut column = 0;
+                for run in &line.runs {
+                    if let Some(index) = [newtui::Tone::Added, newtui::Tone::Removed]
+                        .iter()
+                        .position(|tone| *tone == run.tone)
+                    {
+                        if !run.text.is_empty() {
+                            let cell =
+                                &buffer[(area.x + column, area.y + u16::try_from(row).unwrap())];
+                            let style = palette.tone(run.tone);
+                            assert_eq!(Some(cell.fg), style.fg);
+                            assert_eq!(Some(cell.bg), style.bg);
+                            colored[index] = true;
+                        }
+                    }
+                    column += u16::try_from(run.text.chars().count()).unwrap();
+                }
+            }
+            assert_eq!(colored, [true, true], "both sides must be visible");
+        }
     }
 
     #[test]
@@ -874,7 +1105,7 @@ mod tests {
         for _ in 0..30 {
             press(&mut catalog, KeyCode::Down);
         }
-        assert_eq!(catalog.selected_entry().unwrap().kind, Kind::CoreGrid);
+        assert_eq!(catalog.selected_entry().unwrap().kind, Kind::Diff);
         for _ in 0..60 {
             press(&mut catalog, KeyCode::Left);
         }

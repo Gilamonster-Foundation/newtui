@@ -1,17 +1,22 @@
 //! Small deterministic command line; selecting a fixture never contacts a service.
 
-use crate::fixtures::{Kind, Scenario};
+use crate::fixtures::{DiffPreview, Kind, Scenario};
+use newtui::DiffGeometry;
 
 pub const HELP: &str = "newtui-catalog — Shawn's custom TUI widgets\n\n\
 Usage: newtui-catalog [--item NAME] [--scenario NAME] [--theme NAME] [--width N]\n\n\
-  --item       settings_panel, sparkline, butterfly, heat_meter, gauge, bar, core_grid\n\
+  --item       settings_panel, sparkline, butterfly, heat_meter, gauge, bar, core_grid, diff\n\
   --scenario   normal, narrow, empty, error, long\n\
   --theme      dark, light\n\
   --width      Preview content columns, 1..200 (narrow starts at 8)\n\
+  --geometry   Diff layout: unified, split, stat\n\
+  --row-offset / --column-offset   Diff source window, starting at 0\n\
+  --expanded   Expand all diff context runs\n\
   --list       Print shipped item IDs without opening a terminal\n\
   --help       Show this help\n\n\
 Browse: arrows select/resize, / search, Enter interact, f fixture, t theme, r reset.\n\
 Interact: F1 returns to catalog; Esc goes to the component. F2 fixture, F3 theme, F4 reset.\n\
+Diff: g layout, e context, n notice, up/down rows, Shift-left/right columns, Home reset scroll.\n\
 Ctrl-C exits from any mode. All examples use fixed local sample data.\n";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -42,6 +47,7 @@ pub struct Options {
     pub scenario: Scenario,
     pub theme: Theme,
     pub width: u16,
+    pub diff: DiffPreview,
     pub list: bool,
     pub help: bool,
 }
@@ -53,6 +59,7 @@ impl Default for Options {
             scenario: Scenario::Normal,
             theme: Theme::Dark,
             width: 48,
+            diff: DiffPreview::default(),
             list: false,
             help: false,
         }
@@ -73,9 +80,19 @@ impl Options {
                 options.list = true;
                 continue;
             }
+            if flag == "--expanded" {
+                options.diff.expanded = true;
+                continue;
+            }
             if !matches!(
                 flag.as_str(),
-                "--item" | "--scenario" | "--theme" | "--width"
+                "--item"
+                    | "--scenario"
+                    | "--theme"
+                    | "--width"
+                    | "--geometry"
+                    | "--row-offset"
+                    | "--column-offset"
             ) {
                 return Err(format!("unknown option `{flag}`"));
             }
@@ -103,6 +120,24 @@ impl Options {
                         .filter(|width| (1..=200).contains(width))
                         .ok_or_else(|| "--width must be an integer from 1 to 200".to_string())?;
                     explicit_width = true;
+                }
+                "--geometry" => {
+                    options.diff.geometry = match value.as_str() {
+                        "unified" => DiffGeometry::Unified,
+                        "split" => DiffGeometry::Split,
+                        "stat" => DiffGeometry::Stat,
+                        _ => return Err(format!("unknown diff geometry `{value}`")),
+                    };
+                }
+                "--row-offset" | "--column-offset" => {
+                    let offset = value
+                        .parse::<usize>()
+                        .map_err(|_| format!("{flag} must be a nonnegative integer"))?;
+                    if flag == "--row-offset" {
+                        options.diff.row_offset = offset;
+                    } else {
+                        options.diff.column_offset = offset;
+                    }
                 }
                 _ => unreachable!(),
             }
@@ -137,12 +172,49 @@ mod tests {
             3
         );
         assert_eq!(parse(&["--item", "settings"]).unwrap().item, Kind::Settings);
+        let diff = parse(&[
+            "--item",
+            "diff",
+            "--geometry",
+            "split",
+            "--expanded",
+            "--row-offset",
+            "2",
+            "--column-offset",
+            "4",
+        ])
+        .unwrap();
+        assert_eq!(diff.item, Kind::Diff);
+        assert_eq!(
+            diff.diff,
+            DiffPreview {
+                geometry: DiffGeometry::Split,
+                row_offset: 2,
+                column_offset: 4,
+                expanded: true
+            }
+        );
+        for (name, geometry) in [
+            ("unified", DiffGeometry::Unified),
+            ("stat", DiffGeometry::Stat),
+        ] {
+            assert_eq!(
+                parse(&["--item", "diff", "--geometry", name])
+                    .unwrap()
+                    .diff
+                    .geometry,
+                geometry
+            );
+        }
     }
 
     #[test]
     fn invalid_capture_requests_fail_before_terminal_initialization() {
         for args in [
-            &["--item", "diff"][..],
+            &["--item", "unknown"][..],
+            &["--geometry", "stacked"],
+            &["--row-offset", "-1"],
+            &["--column-offset", "x"],
             &["--theme", "rainbow"],
             &["--scenario", "random"],
             &["--width", "0"],
