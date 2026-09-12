@@ -1,0 +1,12 @@
+[package]
+name = "newtui-catalog"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "Apache-2.0"
+publish = false
+description = "The live catalog and recording host for Shawn's TUI widgets"
+
+[dependencies]
+newtui = { path = "..", features = ["ratatui"] }
+ratatui = "0.29"

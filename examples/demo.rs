@@ -1,21 +1,19 @@
 use std::io;
 
-use newtui::components::settings_panel::{
-    Backend, Choice, Model, Setting, SettingsPanel, SettingsSeed,
-};
-use newtui::{
-    bar, butterfly, core_grid, gauge, heat_meter, ratatui_lines, sparkline, Component, CoreSeries,
-    Flow, Key, SparkDirection, Tone, View, WidgetOutput,
-};
+// Both hosts use one registry and the same fixed inputs. The library itself
+// never acquires a dependency on its catalog executable.
+#[allow(dead_code)]
+#[path = "support/fixtures.rs"]
+mod fixtures;
+use fixtures::{settings_seed, Kind as WidgetKind, Scenario};
+use newtui::components::settings_panel::SettingsPanel;
+use newtui::{ratatui_lines, Component, Flow, Key, Tone, View};
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::{DefaultTerminal, Frame};
-
-const CORE_ZERO_HISTORY: &[f64] = &[15.0, 30.0, 65.0, 40.0, 85.0];
-const CORE_ONE_HISTORY: &[f64] = &[80.0, 60.0, 25.0, 45.0, 20.0];
 
 fn main() -> io::Result<()> {
     let name = std::env::args()
@@ -50,30 +48,9 @@ enum Demo {
 
 impl Demo {
     fn named(name: &str) -> Option<Self> {
-        match name {
-            "settings" => Some(Self::Settings(SettingsDemo::new())),
-            "sparkline" => Some(Self::Widget(WidgetDemo::new(
-                WidgetKind::Sparkline,
-                &[24, 12, 6],
-            ))),
-            "butterfly" => Some(Self::Widget(WidgetDemo::new(
-                WidgetKind::Butterfly,
-                &[24, 8, 1],
-            ))),
-            "heat_meter" => Some(Self::Widget(WidgetDemo::new(
-                WidgetKind::HeatMeter,
-                &[24, 10, 4],
-            ))),
-            "gauge" => Some(Self::Widget(WidgetDemo::new(
-                WidgetKind::Gauge,
-                &[24, 12, 4],
-            ))),
-            "bar" => Some(Self::Widget(WidgetDemo::new(WidgetKind::Bar, &[24, 10, 4]))),
-            "core_grid" => Some(Self::Widget(WidgetDemo::new(
-                WidgetKind::CoreGrid,
-                &[24, 12, 6],
-            ))),
-            _ => None,
+        match WidgetKind::from_name(name)? {
+            WidgetKind::Settings => Some(Self::Settings(SettingsDemo::new())),
+            kind => Some(Self::Widget(WidgetDemo::new(kind, kind.demo_widths()))),
         }
     }
 
@@ -100,19 +77,7 @@ struct SettingsDemo {
 
 impl SettingsDemo {
     fn new() -> Self {
-        let seed = SettingsSeed::new(
-            vec![Setting::choice(
-                "tenacity",
-                "tenacity",
-                "auto",
-                vec![
-                    Choice::new("auto", "inherit host policy"),
-                    Choice::new("steady", "keep trying"),
-                ],
-            )],
-            Model::new("qwen-local", None),
-            Backend::new(Some("local")),
-        );
+        let seed = settings_seed(Scenario::Normal);
         Self {
             panel: SettingsPanel::new(seed),
             outcome: None,
@@ -210,62 +175,6 @@ fn view_lines(view: &View) -> Vec<Line<'static>> {
     lines
 }
 
-#[derive(Clone, Copy)]
-enum WidgetKind {
-    Sparkline,
-    Butterfly,
-    HeatMeter,
-    Gauge,
-    Bar,
-    CoreGrid,
-}
-
-impl WidgetKind {
-    fn title(self) -> &'static str {
-        match self {
-            Self::Sparkline => "request latency",
-            Self::Butterfly => "network tx | rx",
-            Self::HeatMeter => "disk temperature",
-            Self::Gauge => "daily budget",
-            Self::Bar => "request latency",
-            Self::CoreGrid => "cpu cores",
-        }
-    }
-
-    fn output(self, width: usize) -> WidgetOutput {
-        match self {
-            Self::Sparkline => sparkline(
-                &[10.0, 35.0, 80.0, 20.0, 100.0, 45.0, 70.0],
-                100.0,
-                width,
-                4,
-                SparkDirection::Up,
-            ),
-            Self::Butterfly => butterfly(28.0, 74.0, 100.0, "TX", "RX", width, 1),
-            Self::HeatMeter => heat_meter("disk temperature", 72.0, "72%", width, 1),
-            Self::Gauge => gauge("daily budget", 7.5, 10.0, width, 1),
-            Self::Bar => bar("request latency", 83.0, 100.0, "83 ms", width, 1),
-            Self::CoreGrid => {
-                let cores = [
-                    CoreSeries {
-                        label: "0",
-                        current: 85.0,
-                        history: CORE_ZERO_HISTORY,
-                        maximum: 100.0,
-                    },
-                    CoreSeries {
-                        label: "1",
-                        current: 20.0,
-                        history: CORE_ONE_HISTORY,
-                        maximum: 100.0,
-                    },
-                ];
-                core_grid(&cores, width, 4)
-            }
-        }
-    }
-}
-
 struct WidgetDemo {
     kind: WidgetKind,
     widths: &'static [usize],
@@ -293,7 +202,10 @@ impl WidgetDemo {
 
     fn render(&self, frame: &mut Frame<'_>) {
         let width = self.widths[self.at];
-        let output = self.kind.output(width);
+        let output = self
+            .kind
+            .output(Scenario::Normal, width)
+            .expect("a widget demo has output");
         let lines = ratatui_lines(&output, tone_style);
         let chart_height = u16::try_from(output.lines.len()).unwrap_or(u16::MAX);
         let chart_area = self.chart_area(frame.area(), width, chart_height);
@@ -373,7 +285,10 @@ pub(crate) fn assert_recorded_demos_render_content() {
         for at in 0..demo.widths.len() {
             demo.at = at;
             let width = demo.widths[at];
-            let output = demo.kind.output(width);
+            let output = demo
+                .kind
+                .output(Scenario::Normal, width)
+                .expect("a widget demo has output");
             let height = u16::try_from(output.lines.len()).expect("demo output height fits a u16");
             // The short tapes expose six rows; the taller recordings have room
             // for their four-row widgets. Keeping the short case constrained is
