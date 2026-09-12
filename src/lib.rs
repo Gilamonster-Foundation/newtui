@@ -1,11 +1,13 @@
 //! **Terminal UI components you can drive in isolation.**
 //!
-//! Two families:
+//! Three families:
 //!
 //! - **Components** are interactive — a state machine over keys. A settings
 //!   panel, a chooser, a form, a pager.
 //! - **Widgets** are display — a pure function from data to styled text. A
 //!   sparkline, a butterfly meter, a heat bar, a gauge.
+//! - **Layouts** derive pane rectangles and dividers from host-owned IDs and
+//!   proportions; they do not own pane content or navigation.
 //!
 //! # The problem this exists for
 //!
@@ -40,6 +42,7 @@ pub mod components;
 pub mod diff;
 mod explore;
 mod key;
+pub mod layout;
 mod property;
 mod view;
 mod widget;

@@ -5,7 +5,9 @@ pub mod fixtures;
 pub mod options;
 mod palette;
 
-use fixtures::{notice_text, settings_seed, DiffPreview, Entry, Kind, Scenario, ENTRIES};
+use fixtures::{
+    notice_text, settings_seed, BspPreview, DiffPreview, Entry, Kind, Scenario, ENTRIES,
+};
 use newtui::{
     components::settings_panel::SettingsPanel, ratatui_lines, Component, Flow, Key, WidgetOutput,
 };
@@ -30,6 +32,7 @@ pub struct Catalog {
     panel: SettingsPanel,
     outcome: Option<String>,
     diff: DiffPreview,
+    bsp: BspPreview,
     notice_index: usize,
 }
 
@@ -55,6 +58,7 @@ impl Catalog {
             panel: SettingsPanel::new(settings_seed(options.scenario)),
             outcome: None,
             diff: options.diff,
+            bsp: options.bsp,
             notice_index: 0,
         }
     }
@@ -83,6 +87,7 @@ impl Catalog {
         self.panel = SettingsPanel::new(settings_seed(self.scenario));
         self.outcome = None;
         self.diff = DiffPreview::default();
+        self.bsp = BspPreview::default();
         self.notice_index = 0;
     }
 
@@ -221,6 +226,25 @@ impl Catalog {
                         }
                     }
                 }
+            } else if self
+                .selected_entry()
+                .is_some_and(|entry| entry.kind == Kind::Bsp)
+            {
+                if !event
+                    .modifiers
+                    .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+                {
+                    match event.code {
+                        KeyCode::Left => self.resize(false),
+                        KeyCode::Right => self.resize(true),
+                        KeyCode::Esc => self.focused = false,
+                        _ => {
+                            if let Some(key) = map_key(event) {
+                                self.bsp.handle(key);
+                            }
+                        }
+                    }
+                }
             } else {
                 match event.code {
                     KeyCode::Left => self.resize(false),
@@ -312,6 +336,12 @@ impl Catalog {
                 .is_some_and(|entry| entry.kind == Kind::Diff)
         {
             "DIFF ↑↓ rows · Shift-←→ columns · ←→ size\ng layout · e context · n notice · F1 catalog\nF2 fixture · F3 theme · F4 reset · Ctrl-C quit"
+        } else if self.focused
+            && self
+                .selected_entry()
+                .is_some_and(|entry| entry.kind == Kind::Bsp)
+        {
+            "BSP Tab divider · ↑↓ ratio · ←→ size\ns shrink/restore · x reject NaN · F1 catalog\nF2 fixture · F3 theme · F4 reset · Ctrl-C quit"
         } else if self.focused {
             "INTERACT   F1 catalog · F2 fixture · F3 theme · F4 reset · Ctrl-C quit"
         } else if frame.area().width < 80 {
@@ -379,10 +409,10 @@ impl Catalog {
                 ListItem::new(vec![
                     Line::from(entry.name),
                     Line::styled(
-                        if entry.kind == Kind::Settings {
-                            "  INTERACTIVE"
-                        } else {
-                            "  DISPLAY WIDGET"
+                        match entry.kind {
+                            Kind::Settings => "  INTERACTIVE",
+                            Kind::Bsp => "  LAYOUT PRIMITIVE",
+                            _ => "  DISPLAY WIDGET",
                         },
                         Style::default().fg(palette.muted),
                     ),
@@ -434,6 +464,8 @@ impl Catalog {
                     Span::styled(
                         if entry.kind == Kind::Diff {
                             format!("{} / {}  ", entry.id, self.diff.geometry_name())
+                        } else if entry.kind == Kind::Bsp {
+                            format!("{} / {}  ", entry.id, self.bsp.size_name())
                         } else {
                             format!("{}  ", entry.id)
                         },
@@ -461,7 +493,14 @@ impl Catalog {
             self.render_settings(frame, inside, palette);
         } else if let Some(content) = self.preview_content_rect(frame.area()) {
             let output = self.widget_output(entry, content);
-            notice = notice_text(&output, self.notice_index);
+            notice = if entry.kind == Kind::Bsp {
+                Some(
+                    self.bsp
+                        .status(self.scenario, content.width, content.height),
+                )
+            } else {
+                notice_text(&output, self.notice_index)
+            };
             frame.render_widget(
                 Paragraph::new(ratatui_lines(&output, |tone| palette.tone(tone))),
                 content,
@@ -635,6 +674,12 @@ impl Catalog {
                 usize::from(content.width),
                 usize::from(content.height),
             )
+        } else if entry.kind == Kind::Bsp {
+            self.bsp.output(
+                self.scenario,
+                usize::from(content.width),
+                usize::from(content.height),
+            )
         } else {
             entry
                 .kind
@@ -769,6 +814,182 @@ mod tests {
                 .collect();
             rendered == line.text()
         })
+    }
+
+    // Read each existing builder independently of the BSP compositor, then
+    // locate its cells with the real geometry projection. Chrome cannot pass.
+    fn bsp_panes_match(catalog: &Catalog, buffer: &Buffer) -> bool {
+        let area = catalog.preview_content_rect(buffer.area).unwrap();
+        let scenario = if catalog.scenario == Scenario::Error {
+            Scenario::Normal
+        } else {
+            catalog.scenario
+        };
+        for (id, pane) in catalog.bsp.panes(catalog.scenario, area.width, area.height) {
+            if pane.width == 0 || pane.height == 0 {
+                continue;
+            }
+            let kind = match id {
+                10 => Kind::Sparkline,
+                20 => Kind::Gauge,
+                30 => Kind::Butterfly,
+                _ => return false,
+            };
+            let output = kind.output(scenario, usize::from(pane.width)).unwrap();
+            let header = u16::from(pane.height > 1);
+            for (row, line) in output
+                .lines
+                .iter()
+                .take(usize::from(pane.height - header))
+                .enumerate()
+            {
+                let actual: String = (0..pane.width)
+                    .map(|column| {
+                        buffer[(
+                            area.x + pane.x + column,
+                            area.y + pane.y + header + u16::try_from(row).unwrap(),
+                        )]
+                            .symbol()
+                    })
+                    .collect();
+                if actual != line.text() {
+                    return false;
+                }
+            }
+        }
+        for border in catalog
+            .bsp
+            .borders(catalog.scenario, area.width, area.height)
+        {
+            if border.area.width == 0 || border.area.height == 0 {
+                continue;
+            }
+            match border.direction {
+                newtui::layout::Direction::Horizontal => {
+                    for row in border.area.y..border.area.y + border.area.height {
+                        if buffer[(area.x + border.pos, area.y + row)].symbol() != "|" {
+                            return false;
+                        }
+                    }
+                }
+                newtui::layout::Direction::Vertical => {
+                    for column in border.area.x..border.area.x + border.area.width {
+                        if buffer[(area.x + column, area.y + border.pos)].symbol() != "-" {
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+        true
+    }
+
+    // GUARD: tests::bsp_host_renders_existing_widgets_inside_real_geometry
+    #[test]
+    fn bsp_host_renders_existing_widgets_inside_real_geometry() {
+        for scenario in Scenario::ALL {
+            for theme in [Theme::Dark, Theme::Light] {
+                for (columns, width, height) in
+                    [(1, 54, 28), (8, 80, 28), (48, 120, 36), (200, 140, 40)]
+                {
+                    let catalog = Catalog::new(Options {
+                        item: Kind::Bsp,
+                        scenario,
+                        theme,
+                        width: columns,
+                        ..Options::default()
+                    });
+                    let mut buffer = render(&catalog, width, height);
+                    assert!(
+                        bsp_panes_match(&catalog, &buffer),
+                        "{scenario:?} {theme:?} {columns}"
+                    );
+                    let area = catalog.preview_content_rect(buffer.area).unwrap();
+                    let note = Regions::new(buffer.area).note;
+                    let actual_note = (note.y..note.bottom())
+                        .map(|row| {
+                            (note.x..note.right())
+                                .map(|column| buffer[(column, row)].symbol())
+                                .collect::<String>()
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    let actual_note = actual_note.split_whitespace().collect::<Vec<_>>().join(" ");
+                    let status = catalog
+                        .bsp
+                        .status(scenario, area.width, area.height)
+                        .split_whitespace()
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    assert!(actual_note.contains(&status), "complete geometry status must remain outside tiny previews: {actual_note:?} vs {status:?}");
+                    if scenario != Scenario::Empty {
+                        for y in area.y..area.bottom() {
+                            for x in area.x..area.right() {
+                                buffer[(x, y)].set_symbol(" ");
+                            }
+                        }
+                        assert!(
+                            !bsp_panes_match(&catalog, &buffer),
+                            "blank panes cannot pass from labels and catalog chrome"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn bsp_controls_restore_geometry_and_report_only_affected_panes() {
+        let mut catalog = Catalog::new(Options {
+            item: Kind::Bsp,
+            width: 88,
+            ..Options::default()
+        });
+        let before = catalog.bsp.panes(Scenario::Normal, 88, 16);
+        press(&mut catalog, KeyCode::Enter);
+        press(&mut catalog, KeyCode::Char('s'));
+        assert_eq!(catalog.bsp.size_name(), "half width");
+        assert_eq!(
+            catalog.bsp.changed(Scenario::Normal, 88, 16),
+            vec![10, 20, 30]
+        );
+        press(&mut catalog, KeyCode::Char('s'));
+        assert_eq!(catalog.bsp.panes(Scenario::Normal, 88, 16), before);
+        press(&mut catalog, KeyCode::Tab);
+        press(&mut catalog, KeyCode::Up);
+        assert_eq!(catalog.bsp.changed(Scenario::Normal, 88, 16), vec![10, 30]);
+        assert_eq!(catalog.bsp.panes(Scenario::Normal, 88, 16)[2], before[2]);
+        let edited = catalog.bsp.panes(Scenario::Normal, 88, 16);
+        press(&mut catalog, KeyCode::Char('x'));
+        assert_eq!(catalog.bsp.panes(Scenario::Normal, 88, 16), edited);
+        assert!(catalog.bsp.changed(Scenario::Normal, 88, 16).is_empty());
+        assert!(text(&render(&catalog, 140, 40)).contains("NaN rejected; unchanged"));
+        for modifiers in [KeyModifiers::CONTROL, KeyModifiers::ALT] {
+            let previous = catalog.bsp.clone();
+            for code in [
+                KeyCode::Up,
+                KeyCode::Down,
+                KeyCode::Char('s'),
+                KeyCode::Char('x'),
+                KeyCode::Tab,
+            ] {
+                assert!(!catalog.handle(KeyEvent::new(code, modifiers)));
+                assert_eq!(catalog.bsp, previous);
+            }
+        }
+        press(&mut catalog, KeyCode::Home);
+        assert_eq!(catalog.bsp, BspPreview::default());
+        press(&mut catalog, KeyCode::BackTab);
+        press(&mut catalog, KeyCode::Down);
+        assert_eq!(catalog.bsp.changed(Scenario::Normal, 88, 16), vec![10, 30]);
+        assert!(bsp_panes_match(&catalog, &render(&catalog, 140, 40)));
+        press(&mut catalog, KeyCode::F(4));
+        assert_eq!(catalog.bsp, BspPreview::default());
+        press(&mut catalog, KeyCode::Esc);
+        assert!(!catalog.focused);
+        press(&mut catalog, KeyCode::Enter);
+        press(&mut catalog, KeyCode::F(1));
+        assert!(!catalog.focused);
     }
 
     #[test]
@@ -1105,7 +1326,10 @@ mod tests {
         for _ in 0..30 {
             press(&mut catalog, KeyCode::Down);
         }
-        assert_eq!(catalog.selected_entry().unwrap().kind, Kind::Diff);
+        assert_eq!(
+            catalog.selected_entry().unwrap().kind,
+            ENTRIES.last().unwrap().kind
+        );
         for _ in 0..60 {
             press(&mut catalog, KeyCode::Left);
         }

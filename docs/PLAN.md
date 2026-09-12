@@ -328,6 +328,12 @@ Two uses, and the second is the one that earns the binding:
 
 ### Package F — the dashboard layer (needs B)
 
+**Geometry slice:** `layout::bsp` implements ratio BSP rectangles, structural
+divider paths, and changed-pane projection, with a live `bsp` catalog/demo.
+See [the geometry contract](layout.md). Dashboard composition, data sources,
+navigation, and Gilamonster cockpit adoption below remain open; package F is
+not complete.
+
 One way to compose the widgets: a panel is a widget bound to a data
 source; a dashboard is a layout of panels plus keyboard navigation. The data
 source is a trait the host implements — newtui ships mock sources, never a

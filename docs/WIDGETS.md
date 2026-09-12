@@ -4,7 +4,8 @@ Shawn's custom TUI widgets, developed in his terminal harnesses and being
 collected into a reusable Rust library.
 
 **Available in newtui:** the settings panel; sparkline, butterfly, heat meter,
-gauge, bar, core grid and diff display; the optional ratatui adapter; Python bindings; and the
+gauge, bar, core grid and diff display; ratio BSP panel geometry; the optional
+ratatui adapter; Python bindings; and the
 [component API](../src/component.rs), [view data](../src/view.rs) and
 [state explorer](../src/explore.rs).
 **Donor widgets** identify the originating implementations and remaining extractions.
@@ -12,7 +13,7 @@ gauge, bar, core grid and diff display; the optional ratatui adapter; Python bin
 
 This is the front door — what is available, donated, or only planned. For the
 deep inventory of what the crate actually ships today, with per-component
-acceptance properties and runnable examples, see the [component and widget
+acceptance properties and runnable examples, see the [component, widget, and layout
 catalogue](CATALOG.md); for how components and widgets are both tested, the
 [testing model](testing-model.md).
 
@@ -33,6 +34,23 @@ recording also shows [unified hunks](widgets/generated/diff-unified.png),
 [a one-column preview with complete notices outside it](widgets/generated/diff-tiny.png).
 The [animated walkthrough](../demos/catalog/diff.gif) and
 [recording inputs](widgets/generated/CAPTURES.md) come from this running host.
+
+## Panel geometry
+
+The [BSP layout primitive](layout.md) places panes using stored ratios, so an
+80/20 split returns to the same rectangles after shrinking and restoring the
+terminal. Hosts receive divider paths and the IDs of panes whose geometry
+changed. Pane content and navigation remain host responsibilities.
+
+![Real widgets inside the live catalog's BSP panel layout](widgets/generated/bsp.png)
+
+Launch `just catalog --item bsp --width 88` to change ratios, select a divider,
+and try shrink/restore. [Narrow geometry](widgets/generated/bsp-narrow.png),
+[rejected nonfinite edits](widgets/generated/bsp-error.png), and the
+[recorded interaction](../demos/catalog/bsp.gif) use the same host.
+[Recording inputs](widgets/generated/BSP-CAPTURES.md) accompany the images.
+This delivers package F's geometry prerequisite; dashboard composition and
+Gilamonster cockpit adoption remain planned.
 
 ## Featured: heat graphs and meters
 

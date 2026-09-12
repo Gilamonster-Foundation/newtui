@@ -1,22 +1,25 @@
 //! Small deterministic command line; selecting a fixture never contacts a service.
 
-use crate::fixtures::{DiffPreview, Kind, Scenario};
-use newtui::DiffGeometry;
+use crate::fixtures::{BspPreview, DiffPreview, Kind, Scenario};
+use newtui::{DiffGeometry, Key};
 
 pub const HELP: &str = "newtui-catalog — Shawn's custom TUI widgets\n\n\
 Usage: newtui-catalog [--item NAME] [--scenario NAME] [--theme NAME] [--width N]\n\n\
-  --item       settings_panel, sparkline, butterfly, heat_meter, gauge, bar, core_grid, diff\n\
+  --item       settings_panel, sparkline, butterfly, heat_meter, gauge, bar, core_grid, diff, bsp\n\
   --scenario   normal, narrow, empty, error, long\n\
   --theme      dark, light\n\
   --width      Preview content columns, 1..200 (narrow starts at 8)\n\
   --geometry   Diff layout: unified, split, stat\n\
   --row-offset / --column-offset   Diff source window, starting at 0\n\
   --expanded   Expand all diff context runs\n\
+  --ratio      BSP root ratio; finite values clamp to 0.1..0.9\n\
+  --shrunk     Start the BSP fixture at half its available width\n\
   --list       Print shipped item IDs without opening a terminal\n\
   --help       Show this help\n\n\
 Browse: arrows select/resize, / search, Enter interact, f fixture, t theme, r reset.\n\
 Interact: F1 returns to catalog; Esc goes to the component. F2 fixture, F3 theme, F4 reset.\n\
 Diff: g layout, e context, n notice, up/down rows, Shift-left/right columns, Home reset scroll.\n\
+BSP: Tab divider, up/down ratio, s shrink/restore, x reject NaN, Home reset geometry.\n\
 Ctrl-C exits from any mode. All examples use fixed local sample data.\n";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -48,6 +51,7 @@ pub struct Options {
     pub theme: Theme,
     pub width: u16,
     pub diff: DiffPreview,
+    pub bsp: BspPreview,
     pub list: bool,
     pub help: bool,
 }
@@ -60,6 +64,7 @@ impl Default for Options {
             theme: Theme::Dark,
             width: 48,
             diff: DiffPreview::default(),
+            bsp: BspPreview::default(),
             list: false,
             help: false,
         }
@@ -71,6 +76,7 @@ impl Options {
         let mut options = Self::default();
         let mut args = args.into_iter();
         let mut explicit_width = false;
+        let mut shrunk = false;
         while let Some(flag) = args.next() {
             if flag == "--help" || flag == "-h" {
                 options.help = true;
@@ -84,6 +90,10 @@ impl Options {
                 options.diff.expanded = true;
                 continue;
             }
+            if flag == "--shrunk" {
+                shrunk = true;
+                continue;
+            }
             if !matches!(
                 flag.as_str(),
                 "--item"
@@ -93,6 +103,7 @@ impl Options {
                     | "--geometry"
                     | "--row-offset"
                     | "--column-offset"
+                    | "--ratio"
             ) {
                 return Err(format!("unknown option `{flag}`"));
             }
@@ -139,11 +150,22 @@ impl Options {
                         options.diff.column_offset = offset;
                     }
                 }
+                "--ratio" => {
+                    let ratio = value
+                        .parse::<f32>()
+                        .ok()
+                        .filter(|ratio| ratio.is_finite())
+                        .ok_or_else(|| "--ratio must be a finite number".to_string())?;
+                    options.bsp.set_ratio(ratio);
+                }
                 _ => unreachable!(),
             }
         }
         if options.scenario == Scenario::Narrow && !explicit_width {
             options.width = 8;
+        }
+        if shrunk {
+            options.bsp.handle(Key::Char('s'));
         }
         Ok(options)
     }
@@ -155,6 +177,24 @@ mod tests {
 
     fn parse(args: &[&str]) -> Result<Options, String> {
         Options::parse(args.iter().map(ToString::to_string))
+    }
+
+    #[test]
+    fn bsp_arguments_bound_ratios_and_select_a_deterministic_size() {
+        let options = parse(&["--item", "bsp", "--ratio", "0.7", "--shrunk", "--shrunk"]).unwrap();
+        assert_eq!(options.item, Kind::Bsp);
+        assert_eq!(options.bsp.ratio().to_bits(), 0.7_f32.to_bits());
+        assert_eq!(options.bsp.size_name(), "half width");
+        assert_eq!(
+            parse(&["--ratio", "3"]).unwrap().bsp.ratio().to_bits(),
+            0.9_f32.to_bits()
+        );
+        for value in ["NaN", "inf", "-inf", "not-a-number"] {
+            assert!(parse(&["--ratio", value])
+                .unwrap_err()
+                .contains("finite number"));
+        }
+        assert!(parse(&["--ratio"]).unwrap_err().contains("needs a value"));
     }
 
     #[test]

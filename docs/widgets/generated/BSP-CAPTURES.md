@@ -6,57 +6,57 @@ Source revision: 1ac4ee8b6211d33efb7ac5e09c63dccd72c439a2
 Recorder: vhs version v0.11.0 (c6af91a)
 Working tree: includes the reviewed changes accompanying these captures.
 
-## demos/diff.tape
+## demos/catalog/bsp.tape
 
 ```text
-Output demos/diff.gif
+Output demos/catalog/bsp.gif
 
 Set Shell "bash"
-Set Width 1280
-Set Height 760
-Set FontSize 16
+Set Width 1500
+Set Height 940
+Set FontSize 18
 Set FontFamily "Menlo"
 Set Theme "Catppuccin Mocha"
 Set CursorBlink false
 Set Padding 16
 
 Hide
-Type `"${NEWTUI_DEMO_BIN:-./target/debug/examples/demo}" diff`
+Type `"$NEWTUI_CATALOG_BIN" --item bsp --width 88 --theme dark`
 Enter
-Wait+Screen /unified \/ normal/
-Sleep 500ms
+Wait+Screen /LIVE CATALOG/
+Sleep 1s
 Show
+Enter
 Sleep 1s
-Type "g"
+Screenshot docs/widgets/generated/bsp.png
 Sleep 1s
-Type "g"
+Type "s"
 Sleep 1s
-Type "g"
-Type "e"
+Type "s"
 Sleep 1s
-Down 3
-Sleep 800ms
-Up 3
-Type "e"
-Left
-Sleep 800ms
-Left
-Sleep 800ms
-Left
-Type "n"
+Tab
+Up
 Sleep 1s
-Right 3
+Down
+Sleep 1s
+Escape
+Type "rf"
+Enter
+Sleep 1s
+Screenshot docs/widgets/generated/bsp-narrow.png
+Sleep 1s
+Escape
 Type "f"
-Sleep 800ms
-Type "f"
-Sleep 800ms
-Type "f"
-Sleep 800ms
-Type "f"
-PageDown
+Enter
 Sleep 1s
-Type "n"
-Sleep 800ms
+Escape
+Type "f"
+Enter
+Type "x"
+Sleep 1s
+Screenshot docs/widgets/generated/bsp-error.png
+Sleep 1s
+Escape
 Type "q"
 Sleep 200ms
 ```
