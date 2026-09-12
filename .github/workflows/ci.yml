@@ -27,6 +27,8 @@ jobs:
       # Non-default by design, so it cannot disappear behind workspace defaults.
       - run: cargo test -p newtui-py
       - run: cargo test -p newtui-catalog
+      # Tool-boundary failures must preserve previous captures; no recorder install needed.
+      - run: python3 -m unittest discover -s scripts -p test_capture.py
 
   clippy:
     name: Lint

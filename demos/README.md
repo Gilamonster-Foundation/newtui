@@ -19,12 +19,21 @@ just demo settings  # both formats for just one
 
 Recorded with [VHS](https://github.com/charmbracelet/vhs).
 
+Both commands build the named host once and pass Cargo's reported executable
+to VHS, including with `CARGO_TARGET_DIR` or paths containing spaces. Set
+`VHS_BIN=/path/to/vhs` to choose a recorder. They record into a fresh temporary
+directory, require multiple frames, derive each APNG from its GIF, and decode
+all outputs before replacing any existing captures. A missing frame set,
+failed conversion or unreadable output leaves the previous set intact.
+Per-piece inputs are retained under [`captures/`](captures/); regenerating one
+demo leaves the other demos and their input records untouched.
+
 ## Live catalog
 
 `just catalog` opens all shipped pieces in one host. `just catalog-capture`
 builds that host and records the checked-in `catalog/*.tape` sequences. The
 capture script honors `CARGO_TARGET_DIR`; VHS receives Cargo's actual executable
-path. It needs `vhs`, `ttyd`, `ffmpeg` and a Chromium-compatible browser (VHS
+path. The recording commands need `vhs`, `ttyd`, `ffmpeg`, `ffprobe` and a Chromium-compatible browser (VHS
 locates or downloads the browser).
 
 The current captures use VHS 0.11.0. Set `VHS_BIN=/path/to/vhs` to select a
