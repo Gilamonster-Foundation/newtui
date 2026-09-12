@@ -21,6 +21,8 @@ impl PyKey {
     const ENTER: Self = Self { inner: Key::Enter };
     #[classattr]
     const ESC: Self = Self { inner: Key::Esc };
+    #[classattr]
+    const OTHER: Self = Self { inner: Key::Other };
 
     #[staticmethod]
     fn character(value: char) -> Self {

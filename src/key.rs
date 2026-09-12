@@ -10,8 +10,9 @@
 //!
 //! The set is small on purpose. It covers what an interactive component can
 //! meaningfully be held to: move, adjust, commit, back out, type, and the
-//! modifier that changes what those mean. A key nothing is defined for is a
-//! key the harness would explore for no reason.
+//! modifier that changes what those mean. [`Key::Other`] carries an unmapped
+//! host key when its arrival matters, such as a confirmation that declines on
+//! any key except an explicit yes.
 
 /// One key press, as a component sees it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -48,6 +49,10 @@ pub enum Key {
     Char(char),
     /// A character with the control modifier held.
     Ctrl(char),
+    /// A host key outside this vocabulary. It still reached the component:
+    /// the component decides whether to ignore it or, for example, decline a
+    /// pending confirmation. It is neither a character nor an escape key.
+    Other,
 }
 
 impl Key {
@@ -98,6 +103,7 @@ impl core::fmt::Display for Key {
             Self::PageDown => f.write_str("PageDown"),
             Self::Char(c) => write!(f, "'{c}'"),
             Self::Ctrl(c) => write!(f, "Ctrl-{c}"),
+            Self::Other => f.write_str("Other"),
         }
     }
 }
@@ -111,6 +117,36 @@ mod tests {
         let path = [Key::Down, Key::Right, Key::Char('x'), Key::Ctrl('s')];
         let rendered: Vec<String> = path.iter().map(ToString::to_string).collect();
         assert_eq!(rendered.join(" "), "Down Right 'x' Ctrl-s");
+    }
+
+    // GUARD: key::tests::every_named_key_has_a_distinct_rendering_and_escape_identity — this is a guard; tests/mutations.rs must show it red.
+    #[test]
+    fn every_named_key_has_a_distinct_rendering_and_escape_identity() {
+        let keys = [
+            (Key::Up, "Up"),
+            (Key::Down, "Down"),
+            (Key::Left, "Left"),
+            (Key::Right, "Right"),
+            (Key::Enter, "Enter"),
+            (Key::Esc, "Esc"),
+            (Key::Backspace, "Backspace"),
+            (Key::Tab, "Tab"),
+            (Key::BackTab, "BackTab"),
+            (Key::Home, "Home"),
+            (Key::End, "End"),
+            (Key::PageUp, "PageUp"),
+            (Key::PageDown, "PageDown"),
+            (Key::Char('x'), "'x'"),
+            (Key::Ctrl('x'), "Ctrl-x"),
+            (Key::Other, "Other"),
+        ];
+        for (key, name) in keys {
+            assert_eq!(key.to_string(), name);
+            assert_eq!(key.is_escape(), key == Key::Esc);
+            for (other, other_name) in keys {
+                assert_eq!(key == other, name == other_name);
+            }
+        }
     }
 
     /// Escape is asked about through one predicate, so a component and the

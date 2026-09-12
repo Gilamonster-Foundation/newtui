@@ -56,6 +56,10 @@ class NewtuiTests(unittest.TestCase):
             current_model="qwen",
         )
 
+        self.assertEqual(repr(newtui.Key.OTHER), "Key(Other)")
+        self.assertNotEqual(newtui.Key.OTHER, newtui.Key.ESC)
+        self.assertEqual(panel.handle(newtui.Key.OTHER), newtui.Flow.stay())
+        self.assertEqual(panel.view().rows[0].value, "auto")
         panel.handle(newtui.Key.RIGHT)
         panel.handle(newtui.Key.DOWN)
         panel.handle(newtui.Key.RIGHT)

@@ -66,6 +66,10 @@ panel = newtui.settings_panel(
     current_model="qwen",
 )
 assert repr(newtui.Key.RIGHT) == "Key(Right)"
+assert repr(newtui.Key.OTHER) == "Key(Other)"
+assert newtui.Key.OTHER != newtui.Key.ESC
+assert panel.handle(newtui.Key.OTHER) == newtui.Flow.stay()
+assert panel.view().rows[0].value == "auto"
 assert repr(newtui.Flow.stay()) == "Flow.stay()"
 assert repr(newtui.Flow.close(True)) == "Flow.close(true)"
 assert not newtui.Flow.stay().closed
