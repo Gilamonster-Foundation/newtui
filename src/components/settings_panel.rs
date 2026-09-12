@@ -52,6 +52,10 @@ impl Setting {
     }
 
     /// A bounded integer row with a token one step below the floor.
+    ///
+    /// The host's opening value is displayed unchanged. If it exceeds `max`,
+    /// either horizontal key brings it to `max`; arithmetic uses the full
+    /// `usize` range. Left at or below `min` selects the release token.
     #[must_use]
     pub fn number(
         key: impl Into<String>,
@@ -213,7 +217,7 @@ impl SettingRow {
                 self.value = match self.value.parse::<usize>() {
                     Ok(value) if direction == Direction::Left && value <= *min => release.clone(),
                     Ok(value) if direction == Direction::Left => {
-                        value.saturating_sub(1).to_string()
+                        value.saturating_sub(1).min(*max).to_string()
                     }
                     Ok(value) => value.saturating_add(1).min(*max).to_string(),
                     Err(_) if direction == Direction::Right => min.to_string(),
@@ -332,8 +336,9 @@ pub struct SettingsPanel {
     rows: Vec<PanelRow>,
     selected: usize,
     /// Deliberately absent from the view-derived fingerprint: only `finish`
-    /// writes this field, and every `finish` path closes the component. No two
-    /// OPEN states can therefore differ only by an intent the view hides.
+    /// writes this field, and the explorer stops at every `finish` path's close.
+    /// Within an explored run, no two OPEN states can therefore differ only
+    /// by an intent the view hides. Hosts may retain a closed instance.
     intent: Option<SettingsIntent>,
 }
 
@@ -365,19 +370,24 @@ impl SettingsPanel {
         }
     }
 
-    /// The host action reported by the last accepted close.
+    /// The snapshot reported by the last accepted close, or `None` after Esc.
+    ///
+    /// If a host reuses this panel after closing, further edits do not rewrite
+    /// this snapshot. [`Self::changes`] and [`Self::picked_model`] read the
+    /// current pending values independently of whether the host accepts them.
     #[must_use]
     pub fn intent(&self) -> Option<&SettingsIntent> {
         self.intent.as_ref()
     }
 
-    fn finish(&mut self, apply: bool, open_backends: bool) -> Flow {
-        if !apply {
-            self.intent = None;
-            return Flow::Close(false);
-        }
-        let changes = self
-            .rows
+    /// Current setting edits, in seed order, relative to the opening values.
+    ///
+    /// Reading these values neither accepts nor resets them. They remain
+    /// available after Esc even though [`Self::intent`] is cleared; the host
+    /// decides whether its containing surface accepts or discards the edits.
+    #[must_use]
+    pub fn changes(&self) -> Vec<SettingChange> {
+        self.rows
             .iter()
             .filter_map(|row| match row {
                 PanelRow::Setting(row) if row.value != row.opened_as => Some(SettingChange {
@@ -386,11 +396,28 @@ impl SettingsPanel {
                 }),
                 _ => None,
             })
-            .collect();
-        let model = self.rows.iter().find_map(|row| match row {
+            .collect()
+    }
+
+    /// The current model if it differs from the model supplied when opening.
+    ///
+    /// Like [`Self::changes`], this is pending state, available before Enter
+    /// and after Esc. Reading it neither accepts nor applies a model switch.
+    #[must_use]
+    pub fn picked_model(&self) -> Option<String> {
+        self.rows.iter().find_map(|row| match row {
             PanelRow::Model(row) if row.value() != row.opened_as => Some(row.value()),
             _ => None,
-        });
+        })
+    }
+
+    fn finish(&mut self, apply: bool, open_backends: bool) -> Flow {
+        if !apply {
+            self.intent = None;
+            return Flow::Close(false);
+        }
+        let changes = self.changes();
+        let model = self.picked_model();
         self.intent = Some(if open_backends {
             SettingsIntent::OpenBackends { changes, model }
         } else {

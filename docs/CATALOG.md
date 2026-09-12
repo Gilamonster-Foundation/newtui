@@ -18,6 +18,9 @@ Demo: [tape](../demos/settings.tape) · [GIF](../demos/settings.gif) · [animate
 A pure settings state machine with choice dials, bounded integer dials, a model
 dial, and a door into the host's backend chooser.
 
+The [host adoption guide](settings-host-adoption.md) explains current pending
+edits, accepted intent snapshots, numeric bounds, and the measured Newt adapter.
+
 The host supplies every setting key, label, current value, accepted choice and
 numeric bound through `SettingsSeed`; `newtui` supplies no product vocabulary.
 After an accepted close, `intent()` describes changed key/value pairs, an
