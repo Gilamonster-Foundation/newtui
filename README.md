@@ -40,6 +40,11 @@ Exploration covers the supplied keys and states distinguished by your
 fingerprint; `report.is_clean()` also requires the search to finish within its
 limits.
 
+Hosts can pass `Key::Other` (`Key.OTHER` in Python) for an unmapped key whose
+arrival matters, such as declining a confirmation. Include it in the explorer's
+alphabet when claiming that behavior; `Key::navigation()` remains the six
+navigation and close keys.
+
 A component is three declarations over keys, with no I/O. This block is a
 doctest, so it compiles and runs on every `cargo test` — an example nobody
 compiles is a claim, not a check.
