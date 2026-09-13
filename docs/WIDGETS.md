@@ -4,7 +4,7 @@ Shawn's custom TUI widgets, developed in his terminal harnesses and being
 collected into a reusable Rust library.
 
 **Available in newtui:** the settings panel; sparkline, butterfly, heat meter,
-gauge, bar, core grid and diff display; ratio BSP panel geometry; the optional
+gauge, bar, core grid and diff display; linked pane navigation; ratio BSP panel geometry; the optional
 ratatui adapter; Python bindings; and the
 [component API](../src/component.rs), [view data](../src/view.rs) and
 [state explorer](../src/explore.rs).
@@ -51,6 +51,24 @@ and try shrink/restore. [Narrow geometry](widgets/generated/bsp-narrow.png),
 [Recording inputs](widgets/generated/BSP-CAPTURES.md) accompany the images.
 This delivers package F's geometry prerequisite; dashboard composition and
 Gilamonster cockpit adoption remain planned.
+
+## Linked pane navigation
+
+The [linked pane component](linked-panes.md) coordinates cursors and scrolling
+across host-supplied correspondence. Switch between region linking,
+proportional linking, and independent navigation without moving the cursor
+merely by changing focus. Empty counterparts remain explicit anchors.
+
+![Linked source panes in the live catalog](widgets/generated/linked-panes.png)
+
+Launch `just catalog --item linked_panes --width 88`. Enter focuses the preview,
+Tab changes sides, arrows and page keys move, and `l` changes the linking mode.
+The [missing-counterpart capture](widgets/generated/linked-panes-anchor.png)
+shows an anchor without highlighting an unrelated source line.
+The [recorded demo](../demos/linked_panes.gif) uses the actual component and
+host-owned source; the [capture inputs](widgets/generated/LINKED-PANES-CAPTURES.md)
+make the screenshots reproducible. Diff-specific review and document browser
+composition remain later slices.
 
 ## Featured: heat graphs and meters
 
@@ -139,7 +157,7 @@ also has text fields, checkboxes, option cycling, and scrolling.
 |---|---|---|
 | Split panes | Proportional cockpit layouts with host-driven divider resizing | [F](PLAN.md#package-f--the-dashboard-layer-needs-b) |
 | Mermaid diagram | Render diagrams beside terminal work, with overflow reporting | [I](PLAN.md#package-i--the-mermaid-widget-needs-b) |
-| Linked two-pane | Link scrolling and selection across a diff or edit/preview | [J](PLAN.md#package-j--the-linked-two-pane-needs-f) |
+| Linked diff review | Compose the linked navigation component with file/hunk addressing and diff actions | [J](PLAN.md#package-j--the-linked-two-pane-needs-f) |
 | Tree | Browse files, outlines, or nested data without losing the cursor | [K](PLAN.md#package-k--the-tree-needs-a) |
 | Document tabs | Track document order, neighboring focus, and dirty state | [L](PLAN.md#package-l--the-tabbed-document-container-needs-f) |
 | Changeset review | Select files and hunks; request stage, unstage, discard, or commit | [M](PLAN.md#package-m--the-changeset-review-surface-needs-j-k) |
