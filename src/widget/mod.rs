@@ -16,7 +16,8 @@ pub use core_grid::core_grid;
 pub use core_grid::CoreSeries;
 pub use diff::diff;
 pub use diff::{
-    diff_with_sources, ContextRun, DiffData, DiffGeometry, DiffProjection, DiffSide, DiffSourceSpan,
+    diff_layout, diff_with_sources, ContextRun, DiffData, DiffFileError, DiffGeometry, DiffLayout,
+    DiffLayoutRow, DiffProjection, DiffSide, DiffSourceSpan, DiffTarget,
 };
 pub use gauge::gauge;
 pub use heat_meter::heat_meter;

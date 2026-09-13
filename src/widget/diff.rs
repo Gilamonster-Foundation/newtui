@@ -82,6 +82,119 @@ pub struct ContextRun {
     pub line: usize,
 }
 
+/// The model entry a projected row addresses, with no source text attached.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DiffTarget {
+    /// A file's label, metadata, or binary/empty notice.
+    File {
+        /// Zero-based file index in the supplied change set.
+        file: usize,
+    },
+    /// A hunk heading.
+    Hunk {
+        /// Zero-based file index.
+        file: usize,
+        /// Zero-based hunk index in that file.
+        hunk: usize,
+    },
+    /// A source line and its actual line numbers on each side it exists.
+    Line {
+        /// Zero-based file index.
+        file: usize,
+        /// Zero-based hunk index.
+        hunk: usize,
+        /// Zero-based `DiffLine` index, including annotations.
+        line: usize,
+        /// One-based line number in the old file, if the line exists there.
+        old: Option<u32>,
+        /// One-based line number in the new file, if the line exists there.
+        new: Option<u32>,
+    },
+    /// The missing-final-newline marker after the line at `line`.
+    Annotation {
+        /// Zero-based file index.
+        file: usize,
+        /// Zero-based hunk index.
+        hunk: usize,
+        /// The `DiffLine` index of the source line the marker follows.
+        line: usize,
+    },
+    /// A folded context run and the `DiffLine` entries it hides.
+    Fold {
+        /// The run a host passes to [`DiffData::expanded`] to reveal it.
+        run: ContextRun,
+        /// Hidden `DiffLine` indices in that hunk.
+        entries: std::ops::Range<usize>,
+    },
+    /// A file's addition/removal bars in the stat geometry.
+    Stat {
+        /// Zero-based file index.
+        file: usize,
+    },
+}
+
+/// What one projected row addresses on each side; `None` where the side has nothing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiffLayoutRow {
+    /// Target in the old file or the shared row.
+    pub old: Option<DiffTarget>,
+    /// Target in the new file or the shared row.
+    pub new: Option<DiffTarget>,
+}
+
+/// Every row a width produces, before scrolling, with no source text retained.
+///
+/// Two changes with the same shape and different text lay out identically, so
+/// a host can keep this for navigation without keeping a second copy of source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiffLayout {
+    /// Rows in projection order, excluding the reserved summary footer.
+    pub rows: Vec<DiffLayoutRow>,
+    /// The geometry actually rendered, after any narrow split fallback.
+    pub geometry: DiffGeometry,
+    /// The single side rendered, if any; split and stat always show both.
+    pub pane: Option<DiffSide>,
+}
+
+impl DiffLayout {
+    /// Rows visible for a row offset in a `width` x `height` rectangle.
+    ///
+    /// Matches [`diff`]: the footer takes the last row, and a zero-width
+    /// rectangle shows none.
+    #[must_use]
+    pub fn window(&self, row: usize, width: usize, height: usize) -> std::ops::Range<usize> {
+        let capacity = if width == 0 {
+            0
+        } else {
+            height.saturating_sub(1)
+        };
+        let start = row.min(self.rows.len().saturating_sub(capacity.max(1)));
+        start..start + capacity.min(self.rows.len().saturating_sub(start))
+    }
+}
+
+/// A requested file index that the change set does not contain.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DiffFileError {
+    /// The requested zero-based index.
+    pub file: usize,
+    /// How many files the change set has.
+    pub files: usize,
+}
+
+impl std::fmt::Display for DiffFileError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "file {} is outside a change set of {} files",
+            self.file, self.files
+        )
+    }
+}
+
+impl std::error::Error for DiffFileError {}
+
 /// Borrowed content and a host-supplied presentation request, with no interaction state.
 #[derive(Debug, Clone, Copy)]
 pub struct DiffData<'a> {
@@ -91,6 +204,8 @@ pub struct DiffData<'a> {
     column: usize,
     context: usize,
     expanded: &'a [ContextRun],
+    file: Option<usize>,
+    pane: Option<DiffSide>,
 }
 
 impl<'a> DiffData<'a> {
@@ -104,7 +219,30 @@ impl<'a> DiffData<'a> {
             column: 0,
             context: 3,
             expanded: &[],
+            file: None,
+            pane: None,
         }
+    }
+
+    /// Show one file; every address keeps its index in the whole change set.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DiffFileError`] when the change set has no such file.
+    pub fn file(mut self, file: usize) -> Result<Self, DiffFileError> {
+        let files = self.changes.files().len();
+        if file >= files {
+            return Err(DiffFileError { file, files });
+        }
+        self.file = Some(file);
+        Ok(self)
+    }
+
+    /// Show only one side as a pane; split and stat geometries ignore it.
+    #[must_use]
+    pub fn pane(mut self, side: DiffSide) -> Self {
+        self.pane = Some(side);
+        self
     }
 
     /// Select the requested geometry; narrow split output reports its fallback.
@@ -173,16 +311,61 @@ impl RenderedRow {
     }
 }
 
+/// Model address of a source line: file, hunk, and `DiffLine` index.
+type Address = (usize, usize, usize);
+
 enum Row<'a> {
-    Text(Vec<Run>),
+    Text(Vec<Run>, DiffTarget),
     Source(Source<'a>),
     Pair(Option<Source<'a>>, Option<Source<'a>>),
-    Annotation(bool, bool),
-    Bars(usize, usize, usize),
+    Annotation(Option<Address>, Option<Address>),
+    Bars(usize, usize, usize, usize),
 }
 
-fn text_row(text: impl Into<String>, tone: Tone) -> Row<'static> {
-    Row::Text(vec![Run::new(text, tone)])
+fn text_row(text: impl Into<String>, tone: Tone, target: DiffTarget) -> Row<'static> {
+    Row::Text(vec![Run::new(text, tone)], target)
+}
+
+impl Source<'_> {
+    fn address(self) -> Address {
+        (self.file, self.hunk, self.index)
+    }
+
+    fn target(self) -> DiffTarget {
+        DiffTarget::Line {
+            file: self.file,
+            hunk: self.hunk,
+            line: self.index,
+            old: self.old,
+            new: self.new,
+        }
+    }
+}
+
+impl Row<'_> {
+    fn layout(&self, pane: Option<DiffSide>) -> DiffLayoutRow {
+        let annotation = |address: Option<Address>| {
+            address.map(|(file, hunk, line)| DiffTarget::Annotation { file, hunk, line })
+        };
+        let (old, new) = match self {
+            Row::Text(_, target) => (Some(target.clone()), Some(target.clone())),
+            Row::Source(source) => (
+                source.old.map(|_| source.target()),
+                source.new.map(|_| source.target()),
+            ),
+            Row::Pair(old, new) => (old.map(Source::target), new.map(Source::target)),
+            Row::Annotation(old, new) => (annotation(*old), annotation(*new)),
+            Row::Bars(file, ..) => (
+                Some(DiffTarget::Stat { file: *file }),
+                Some(DiffTarget::Stat { file: *file }),
+            ),
+        };
+        match pane {
+            None => DiffLayoutRow { old, new },
+            Some(DiffSide::Old) => DiffLayoutRow { old, new: None },
+            Some(DiffSide::New) => DiffLayoutRow { old: None, new },
+        }
+    }
 }
 
 fn replacements(text: &str) -> usize {
@@ -210,12 +393,78 @@ pub fn diff(data: DiffData<'_>, width: usize, height: usize) -> WidgetOutput {
     diff_with_sources(data, width, height).output
 }
 
-fn project_diff(data: DiffData<'_>, width: usize, height: usize) -> DiffProjection {
+/// Lay out every row a width produces, addressing the model without copying source.
+///
+/// This is the same projection [`diff`] renders: the same folding, split
+/// fallback, and single-side pane, so `rows[i]` describes output row `i` before
+/// scrolling. Use [`DiffLayout::window`] for the rows a rectangle shows.
+#[must_use]
+pub fn diff_layout(data: DiffData<'_>, width: usize) -> DiffLayout {
+    let arranged = arrange(data, width);
+    DiffLayout {
+        rows: arranged
+            .rows
+            .iter()
+            .map(|row| row.layout(arranged.pane))
+            .collect(),
+        geometry: arranged.geometry,
+        pane: arranged.pane,
+    }
+}
+
+struct Arranged<'a> {
+    rows: Vec<Row<'a>>,
+    escaped: usize,
+    folded: usize,
+    geometry: DiffGeometry,
+    pane: Option<DiffSide>,
+    old_digits: usize,
+    new_digits: usize,
+}
+
+fn arrange(data: DiffData<'_>, width: usize) -> Arranged<'_> {
     let (rows, escaped, folded) = project(data);
     let (old_digits, new_digits) = digits(data.changes);
     let split = data.geometry == DiffGeometry::Split
         && width.saturating_sub(3) / 2 >= old_digits + 4
         && width.saturating_sub(3).div_ceil(2) >= new_digits + 4;
+    let geometry = match data.geometry {
+        DiffGeometry::Stat => DiffGeometry::Stat,
+        _ if split => DiffGeometry::Split,
+        _ => DiffGeometry::Unified,
+    };
+    let pane = if data.geometry == DiffGeometry::Unified {
+        data.pane
+    } else {
+        None
+    };
+    let rows = if split {
+        pair(rows)
+    } else {
+        side(annotate(rows), pane)
+    };
+    Arranged {
+        rows,
+        escaped,
+        folded,
+        geometry,
+        pane,
+        old_digits,
+        new_digits,
+    }
+}
+
+fn project_diff(data: DiffData<'_>, width: usize, height: usize) -> DiffProjection {
+    let Arranged {
+        rows,
+        escaped,
+        folded,
+        geometry,
+        pane,
+        old_digits,
+        new_digits,
+    } = arrange(data, width);
+    let split = geometry == DiffGeometry::Split;
     let mut notices = Vec::new();
     if escaped > 0 {
         notices.push(notice(WidgetNoticeKind::GlyphReplacements {
@@ -231,15 +480,18 @@ fn project_diff(data: DiffData<'_>, width: usize, height: usize) -> DiffProjecti
             rendered: "unified",
         }));
     }
-    let numbered =
-        split || data.geometry == DiffGeometry::Stat || width > old_digits + new_digits + 3;
+    let numbered = match pane {
+        _ if split || data.geometry == DiffGeometry::Stat => true,
+        Some(DiffSide::Old) => width > old_digits + 2,
+        Some(DiffSide::New) => width > new_digits + 2,
+        None => width > old_digits + new_digits + 3,
+    };
     if !numbered {
         notices.push(notice(WidgetNoticeKind::LayoutFallback {
             requested: "numbered",
             rendered: "compact",
         }));
     }
-    let rows = if split { pair(rows) } else { annotate(rows) };
     let capacity = if width == 0 {
         0
     } else {
@@ -259,12 +511,15 @@ fn project_diff(data: DiffData<'_>, width: usize, height: usize) -> DiffProjecti
     for (index, row) in rows.iter().skip(start).take(shown).enumerate() {
         let mut rendered = render_row(
             row,
-            width,
-            data.column,
-            old_digits,
-            new_digits,
-            numbered,
-            split,
+            Frame {
+                width,
+                offset: data.column,
+                old_digits,
+                new_digits,
+                numbered,
+                split,
+                pane,
+            },
         );
         if rendered.before > 0 || rendered.after > 0 {
             notices.push(notice(WidgetNoticeKind::ClippedColumns {
@@ -316,6 +571,10 @@ fn project(data: DiffData<'_>) -> (Vec<Row<'_>>, usize, usize) {
         .max()
         .unwrap_or(0);
     for (file_index, file) in data.changes.files().iter().enumerate() {
+        if data.file.is_some_and(|selected| selected != file_index) {
+            continue;
+        }
+        let target = || DiffTarget::File { file: file_index };
         let label = match file.kind() {
             FileKind::Added => format!("Added {}", file.path().new_path()),
             FileKind::Deleted => format!("Deleted {}", file.path().old_path()),
@@ -332,26 +591,35 @@ fn project(data: DiffData<'_>) -> (Vec<Row<'_>>, usize, usize) {
             FileKind::Modified => format!("Modified {}", file.path().new_path()),
         };
         escaped += replacements(&label);
-        rows.push(Row::Text(vec![
-            Run::new(label, Tone::Label),
-            Run::new(format!(" (+{}", file.additions()), Tone::Added),
-            Run::new(format!(" -{})", file.removals()), Tone::Removed),
-        ]));
+        rows.push(Row::Text(
+            vec![
+                Run::new(label, Tone::Label),
+                Run::new(format!(" (+{}", file.additions()), Tone::Added),
+                Run::new(format!(" -{})", file.removals()), Tone::Removed),
+            ],
+            target(),
+        ));
         for metadata in file.metadata() {
             escaped += replacements(metadata);
-            rows.push(text_row(metadata, Tone::Muted));
+            rows.push(text_row(metadata, Tone::Muted, target()));
         }
         if file.is_binary() {
             rows.push(text_row(
                 "Binary files differ (no text-line counts)",
                 Tone::Muted,
+                target(),
             ));
         }
         if file.hunks().is_empty() && !file.is_binary() {
-            rows.push(text_row("No text hunks", Tone::Muted));
+            rows.push(text_row("No text hunks", Tone::Muted, target()));
         }
         if data.geometry == DiffGeometry::Stat {
-            rows.push(Row::Bars(file.additions(), file.removals(), maximum));
+            rows.push(Row::Bars(
+                file_index,
+                file.additions(),
+                file.removals(),
+                maximum,
+            ));
             continue;
         }
         for (hunk_index, hunk) in file.hunks().iter().enumerate() {
@@ -385,7 +653,14 @@ fn project_hunk<'a>(
         hunk.section()
     );
     escaped += replacements(&heading);
-    rows.push(text_row(heading, Tone::Hunk));
+    rows.push(text_row(
+        heading,
+        Tone::Hunk,
+        DiffTarget::Hunk {
+            file: file_index,
+            hunk: hunk_index,
+        },
+    ));
     let mut old = old.start;
     let mut new = new.start;
     let mut sources = Vec::new();
@@ -421,6 +696,20 @@ fn project_hunk<'a>(
             index,
         });
     }
+    folded += fold_context(data, file_index, hunk_index, &sources, &mut rows);
+    (rows, escaped, folded)
+}
+
+/// Push a hunk's source rows, folding long context runs the host has not expanded.
+/// Returns how many context entries were hidden.
+fn fold_context<'a>(
+    data: DiffData<'a>,
+    file_index: usize,
+    hunk_index: usize,
+    sources: &[Source<'a>],
+    rows: &mut Vec<Row<'a>>,
+) -> usize {
+    let mut folded = 0;
     let mut at = 0;
     while at < sources.len() {
         let source = sources[at];
@@ -435,11 +724,12 @@ fn project_hunk<'a>(
                 .take_while(|source| source.tone == Tone::Context && !source.eof)
                 .count();
         let count = end - at;
-        let expanded = data.expanded.contains(&ContextRun {
+        let run = ContextRun {
             file: file_index,
             hunk: hunk_index,
             line: source.index,
-        });
+        };
+        let expanded = data.expanded.contains(&run);
         if !expanded && count > data.context.saturating_mul(2).saturating_add(1) {
             rows.extend(
                 sources[at..at + data.context]
@@ -448,7 +738,15 @@ fn project_hunk<'a>(
                     .map(Row::Source),
             );
             let hidden = count - data.context * 2;
-            rows.push(text_row(format!("... {hidden} unchanged"), Tone::Muted));
+            rows.push(text_row(
+                format!("... {hidden} unchanged"),
+                Tone::Muted,
+                DiffTarget::Fold {
+                    run,
+                    entries: sources[at + data.context].index
+                        ..sources[end - data.context - 1].index + 1,
+                },
+            ));
             folded += hidden;
             rows.extend(
                 sources[end - data.context..end]
@@ -461,14 +759,17 @@ fn project_hunk<'a>(
         }
         at = end;
     }
-    (rows, escaped, folded)
+    folded
 }
 
 fn annotate(rows: Vec<Row<'_>>) -> Vec<Row<'_>> {
     let mut output = Vec::new();
     for row in rows {
         let annotation = match &row {
-            Row::Source(source) if source.eof => Some((source.old.is_some(), source.new.is_some())),
+            Row::Source(source) if source.eof => Some((
+                source.old.map(|_| source.address()),
+                source.new.map(|_| source.address()),
+            )),
             _ => None,
         };
         output.push(row);
@@ -521,11 +822,27 @@ fn pair(rows: Vec<Row<'_>>) -> Vec<Row<'_>> {
 
 fn push_pair<'a>(rows: &mut Vec<Row<'a>>, old: Option<Source<'a>>, new: Option<Source<'a>>) {
     rows.push(Row::Pair(old, new));
-    let old_eof = old.is_some_and(|source| source.eof);
-    let new_eof = new.is_some_and(|source| source.eof);
-    if old_eof || new_eof {
+    let old_eof = old.filter(|source| source.eof).map(Source::address);
+    let new_eof = new.filter(|source| source.eof).map(Source::address);
+    if old_eof.is_some() || new_eof.is_some() {
         rows.push(Row::Annotation(old_eof, new_eof));
     }
+}
+
+/// Keep the rows that exist on one side; shared text rows stay on both.
+fn side(rows: Vec<Row<'_>>, pane: Option<DiffSide>) -> Vec<Row<'_>> {
+    let Some(pane) = pane else {
+        return rows;
+    };
+    rows.into_iter()
+        .filter(|row| match (row, pane) {
+            (Row::Source(source), DiffSide::Old) => source.old.is_some(),
+            (Row::Source(source), DiffSide::New) => source.new.is_some(),
+            (Row::Annotation(old, _), DiffSide::Old) => old.is_some(),
+            (Row::Annotation(_, new), DiffSide::New) => new.is_some(),
+            _ => true,
+        })
+        .collect()
 }
 
 fn address(number: Option<u32>, digits: usize) -> String {
@@ -617,17 +934,42 @@ fn window(text: &str, width: usize, offset: usize) -> (String, usize, usize) {
     (output, before, count - before - shown)
 }
 
-fn render_row(
-    row: &Row<'_>,
+/// Per-projection settings every rendered row shares.
+#[derive(Clone, Copy)]
+struct Frame {
     width: usize,
     offset: usize,
     old_digits: usize,
     new_digits: usize,
     numbered: bool,
     split: bool,
-) -> RenderedRow {
+    pane: Option<DiffSide>,
+}
+
+fn render_row(row: &Row<'_>, frame: Frame) -> RenderedRow {
+    let Frame {
+        width,
+        offset,
+        old_digits,
+        new_digits,
+        numbered,
+        split,
+        pane,
+    } = frame;
     match row {
-        Row::Text(runs) => RenderedRow::without_source(styled_window(runs, width)),
+        Row::Text(runs, _) => RenderedRow::without_source(styled_window(runs, width)),
+        Row::Source(source) if pane.is_some() => {
+            let (number, digits, side) = match pane {
+                Some(DiffSide::Old) => (source.old, old_digits, DiffSide::Old),
+                _ => (source.new, new_digits, DiffSide::New),
+            };
+            let gutter = if numbered {
+                format!("{} {}", address(number, digits), prefix(*source))
+            } else {
+                prefix(*source).to_string().chars().take(width).collect()
+            };
+            source_line(*source, width, offset, gutter, side)
+        }
         Row::Source(source) => {
             let gutter = if numbered {
                 format!(
@@ -651,57 +993,16 @@ fn render_row(
                 },
             )
         }
-        Row::Pair(old, new) => {
-            let left_width = (width - 3) / 2;
-            let right_width = width - 3 - left_width;
-            let pane = |source: Option<Source<'_>>, width, digits, old_side| {
-                source.map_or_else(
-                    || {
-                        RenderedRow::without_source((
-                            WidgetLine::new(vec![Run::new(" ".repeat(width), Tone::Plain)]),
-                            0,
-                            0,
-                        ))
-                    },
-                    |source| {
-                        source_line(
-                            source,
-                            width,
-                            offset,
-                            format!(
-                                "{} {}",
-                                address(if old_side { source.old } else { source.new }, digits),
-                                prefix(source)
-                            ),
-                            if old_side {
-                                DiffSide::Old
-                            } else {
-                                DiffSide::New
-                            },
-                        )
-                    },
-                )
-            };
-            let mut left = pane(*old, left_width, old_digits, true);
-            let mut right = pane(*new, right_width, new_digits, false);
-            for span in &mut right.sources {
-                span.output_columns.start += left_width + 3;
-                span.output_columns.end += left_width + 3;
-            }
-            left.line.runs.push(Run::new(" | ", Tone::Accent));
-            left.line.runs.extend(right.line.runs);
-            left.before += right.before;
-            left.after += right.after;
-            left.sources.extend(right.sources);
-            left
-        }
+        Row::Pair(old, new) => render_pair(*old, *new, frame),
         Row::Annotation(old, new) => {
             let marker = "\\ No newline at end of file";
             if split {
                 let left_width = (width - 3) / 2;
                 let right_width = width - 3 - left_width;
-                let (left, _, lost_left) = window(if *old { marker } else { "" }, left_width, 0);
-                let (right, _, lost_right) = window(if *new { marker } else { "" }, right_width, 0);
+                let (left, _, lost_left) =
+                    window(if old.is_some() { marker } else { "" }, left_width, 0);
+                let (right, _, lost_right) =
+                    window(if new.is_some() { marker } else { "" }, right_width, 0);
                 RenderedRow::without_source((
                     WidgetLine::new(vec![
                         Run::new(left, Tone::Muted),
@@ -715,7 +1016,7 @@ fn render_row(
                 RenderedRow::without_source(styled_window(&[Run::new(marker, Tone::Muted)], width))
             }
         }
-        Row::Bars(added, removed, maximum) => {
+        Row::Bars(_, added, removed, maximum) => {
             let left_width = width / 2;
             let right_width = width - left_width;
             let (mut left, lost_left) = stat_bar(*added, *maximum, "+", left_width, Tone::Added);
@@ -724,6 +1025,59 @@ fn render_row(
             RenderedRow::without_source((left, 0, lost_left + lost_right))
         }
     }
+}
+
+/// Old and new panes side by side, with right-pane spans in full-row columns.
+fn render_pair(old: Option<Source<'_>>, new: Option<Source<'_>>, frame: Frame) -> RenderedRow {
+    let Frame {
+        width,
+        offset,
+        old_digits,
+        new_digits,
+        ..
+    } = frame;
+    let left_width = (width - 3) / 2;
+    let right_width = width - 3 - left_width;
+    let pane = |source: Option<Source<'_>>, width, digits, old_side| {
+        source.map_or_else(
+            || {
+                RenderedRow::without_source((
+                    WidgetLine::new(vec![Run::new(" ".repeat(width), Tone::Plain)]),
+                    0,
+                    0,
+                ))
+            },
+            |source| {
+                source_line(
+                    source,
+                    width,
+                    offset,
+                    format!(
+                        "{} {}",
+                        address(if old_side { source.old } else { source.new }, digits),
+                        prefix(source)
+                    ),
+                    if old_side {
+                        DiffSide::Old
+                    } else {
+                        DiffSide::New
+                    },
+                )
+            },
+        )
+    };
+    let mut left = pane(old, left_width, old_digits, true);
+    let mut right = pane(new, right_width, new_digits, false);
+    for span in &mut right.sources {
+        span.output_columns.start += left_width + 3;
+        span.output_columns.end += left_width + 3;
+    }
+    left.line.runs.push(Run::new(" | ", Tone::Accent));
+    left.line.runs.extend(right.line.runs);
+    left.before += right.before;
+    left.after += right.after;
+    left.sources.extend(right.sources);
+    left
 }
 
 fn styled_window(runs: &[Run], width: usize) -> (WidgetLine, usize, usize) {
