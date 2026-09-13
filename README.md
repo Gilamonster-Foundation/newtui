@@ -55,6 +55,10 @@ arrival matters, such as declining a confirmation. Include it in the explorer's
 alphabet when claiming that behavior; `Key::navigation()` remains the six
 navigation and close keys.
 
+For independent implementations, the optional [portable corpus](docs/corpus.md)
+records and checks key paths, views, flows, and emitted intents in Rust, Python,
+and Go.
+
 A component is three declarations over keys, with no I/O. This block is a
 doctest, so it compiles and runs on every `cargo test` — an example nobody
 compiles is a claim, not a check.

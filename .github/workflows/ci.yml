@@ -27,6 +27,7 @@ jobs:
       # Non-default by design, so it cannot disappear behind workspace defaults.
       - run: cargo test -p newtui-py
       - run: cargo test -p newtui-catalog
+      - run: cargo test -p newtui-corpus
       # Tool-boundary failures must preserve previous captures; no recorder install needed.
       - run: python3 -m unittest discover -s scripts -p test_capture.py
 
@@ -43,6 +44,7 @@ jobs:
       - run: cargo clippy --all-targets --no-default-features -- -D warnings
       - run: cargo clippy -p newtui-py --all-targets -- -D warnings
       - run: cargo clippy -p newtui-catalog --all-targets -- -D warnings
+      - run: cargo clippy -p newtui-corpus --all-targets -- -D warnings
 
   fmt:
     name: Format
@@ -64,6 +66,7 @@ jobs:
       - run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
       - run: RUSTDOCFLAGS="-D warnings" cargo doc -p newtui-py --no-deps
       - run: RUSTDOCFLAGS="-D warnings" cargo doc -p newtui-catalog --no-deps
+      - run: RUSTDOCFLAGS="-D warnings" cargo doc -p newtui-corpus --no-deps
 
   msrv:
     name: MSRV (Rust 1.88)
@@ -77,6 +80,7 @@ jobs:
       - run: cargo build --all-targets --all-features --locked
       - run: cargo build -p newtui-py --all-targets --locked
       - run: cargo build -p newtui-catalog --all-targets --locked
+      - run: cargo build -p newtui-corpus --all-targets --locked
 
   mutations:
     name: Expected-red (every guard catches a real defect)
@@ -107,6 +111,22 @@ jobs:
       # floor; embedded Python tests let LLVM observe the PyO3 call paths.
       - run: cargo llvm-cov -p newtui-py --summary-only --fail-under-lines 80 --ignore-filename-regex 'newtui-py/tests/'
       - run: cargo llvm-cov -p newtui-catalog --summary-only --fail-under-lines 80
+      - run: cargo llvm-cov -p newtui-corpus --summary-only --fail-under-lines 80
+
+  corpus-consumers:
+    name: Portable corpus (native Python and Go, 80% coverage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+          cache-dependency-path: newtui-corpus/go/go.sum
+      - run: python -m pip install 'content-addressable==0.1.2' 'coverage>=7,<8'
+      - run: PYTHON=python scripts/check-corpus-consumers.sh
 
   python-coverage:
     name: Python API, examples and coverage (80% lines)

@@ -38,7 +38,7 @@ slice in Newt before expanding its dependents:
 | [#18](https://github.com/Gilamonster-Foundation/newtui/issues/18) | Separate optional diagram member; compare current graph prior art with Newt's existing Mermaid extension | Reuse the existing Markdown extension dispatch and source fallback |
 | [#20](https://github.com/Gilamonster-Foundation/newtui/issues/20) | Tree, tabs and linked document browser | Workspace Markdown, headings, search and diagrams |
 | [#21](https://github.com/Gilamonster-Foundation/newtui/issues/21) | Forge-neutral browsing and review components | GitHub and GitLab host adapters, using the shared diff and browser |
-| [#13](https://github.com/Gilamonster-Foundation/newtui/issues/13) | Non-default portable corpus exporter/checker, after the required provenance audit | Rust/Python/Go behavioral conformance; an independent lane |
+| [#13](https://github.com/Gilamonster-Foundation/newtui/issues/13) | Non-default [portable corpus exporter/checker](corpus.md), using the existing content-addressing authority | Rust/Python/Go behavioral conformance; an independent lane |
 
 For each adoption: preserve current behavior in tests, replace one local
 implementation, show the actual edited-file diff and current catalog captures,
@@ -664,9 +664,11 @@ be. README: *"a property is a claim about observable behaviour, so it outlives
 the implementation that first satisfied it — and a reimplementation in another
 language, another framework, or another agent's codebase can be held to exactly
 the same set."* Package E makes the same argument for Python. What both need is
-the corpus **exportable as data** — `report.views` and the property set, written
-out in a form a non-Rust runner can read — which is one deliverable serving two
-consumers, and it should be built once, in E, rather than twice.
+the corpus **exportable as data** — seed plus key paths, observable views, flows,
+intents, property outcomes, and explicit search completeness. Reachable views
+alone cannot establish behavioral equivalence. The non-default
+[`newtui-corpus`](corpus.md) package supplies that carrier once for Rust, Python,
+and native Go consumers through the existing content-addressable machinery.
 
 So: crush is not a Package G-style adoption. It is a conformance target, and it
 does not gate the release.

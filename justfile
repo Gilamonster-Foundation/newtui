@@ -18,7 +18,7 @@
 #   intentionally NONE`. Run them locally with `just formal`.
 
 # Format, lint, test and document — the whole gate.
-check: fmt clippy test doc leaf coverage catalog-check catalog-coverage binding binding-coverage python-coverage capture-check rust-mutations no-sorry model
+check: fmt clippy test doc leaf coverage catalog-check catalog-coverage corpus-check corpus-coverage corpus-consumers binding binding-coverage python-coverage capture-check rust-mutations no-sorry model
 
 # Verify formatting (does not modify files).
 fmt:
@@ -68,6 +68,18 @@ catalog-check:
 
 catalog-coverage:
     cargo llvm-cov -p newtui-catalog --summary-only --fail-under-lines 80
+
+# Portable evidence and native consumers are optional products, explicitly gated.
+corpus-check:
+    cargo clippy -p newtui-corpus --all-targets -- -D warnings
+    cargo test -p newtui-corpus
+    RUSTDOCFLAGS="-D warnings" cargo doc -p newtui-corpus --no-deps
+
+corpus-coverage:
+    cargo llvm-cov -p newtui-corpus --summary-only --fail-under-lines 80
+
+corpus-consumers:
+    scripts/check-corpus-consumers.sh
 
 # Optional host for exploring the actual library; no installation required.
 catalog *args:
