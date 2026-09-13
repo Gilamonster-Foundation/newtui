@@ -18,6 +18,59 @@ pub enum DiffGeometry {
     Stat,
 }
 
+/// Which complete file a host uses to style a projected source fragment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DiffSide {
+    /// The file before the change.
+    Old,
+    /// The file after the change.
+    New,
+}
+
+/// A visible source fragment, with no source text or styling policy attached.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DiffSourceSpan {
+    /// Zero-based row in the returned output, after vertical scrolling.
+    pub output_row: usize,
+    /// Absolute columns in that row, including the split pane's horizontal position.
+    pub output_columns: std::ops::Range<usize>,
+    /// Zero-based file index in the supplied change set.
+    pub file: usize,
+    /// Zero-based hunk index in that file.
+    pub hunk: usize,
+    /// Zero-based `DiffLine` index, including any preceding newline annotations.
+    pub line: usize,
+    /// Unicode scalar indices in the original line payload, excluding its diff prefix.
+    /// Each scalar corresponds to one output cell, including a substituted `?`.
+    pub source_codepoints: std::ops::Range<usize>,
+    /// Old or new file; unified context uses the new side.
+    pub side: DiffSide,
+    /// The actual one-based line number in that side's file.
+    pub line_number: u32,
+}
+
+/// Diff cells and the original source fragments they display.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiffProjection {
+    /// The same rectangle and notices returned by [`diff`].
+    pub output: WidgetOutput,
+    /// Nonempty, disjoint fragments in output row/column order.
+    /// Gutters, padding, synthetic clip markers, annotations and notices have no span.
+    pub sources: Vec<DiffSourceSpan>,
+}
+
+/// Project once and retain source locations for a host's optional highlighter.
+///
+/// Original spaces and literal `<`/`>` characters have locations; synthetic
+/// markers do not. Split context maps once per side. The source ranges use
+/// Unicode scalars, so a tokenizer using UTF-8 byte offsets must convert them.
+/// The host owns multiline syntax state and can apply foreground colors while
+/// preserving the widget's semantic background tones. No source enters a `View`.
+#[must_use]
+pub fn diff_with_sources(data: DiffData<'_>, width: usize, height: usize) -> DiffProjection {
+    project_diff(data, width, height)
+}
+
 /// Stable address of the first context entry in a contiguous model run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContextRun {
@@ -97,7 +150,27 @@ struct Source<'a> {
     text: &'a str,
     tone: Tone,
     eof: bool,
+    file: usize,
+    hunk: usize,
     index: usize,
+}
+
+struct RenderedRow {
+    line: WidgetLine,
+    before: usize,
+    after: usize,
+    sources: Vec<DiffSourceSpan>,
+}
+
+impl RenderedRow {
+    fn without_source((line, before, after): (WidgetLine, usize, usize)) -> Self {
+        Self {
+            line,
+            before,
+            after,
+            sources: Vec::new(),
+        }
+    }
 }
 
 enum Row<'a> {
@@ -134,6 +207,10 @@ fn notice(kind: WidgetNoticeKind) -> WidgetNotice {
 /// reversible encoding; use the model's text faces for original source.
 #[must_use]
 pub fn diff(data: DiffData<'_>, width: usize, height: usize) -> WidgetOutput {
+    diff_with_sources(data, width, height).output
+}
+
+fn project_diff(data: DiffData<'_>, width: usize, height: usize) -> DiffProjection {
     let (rows, escaped, folded) = project(data);
     let (old_digits, new_digits) = digits(data.changes);
     let split = data.geometry == DiffGeometry::Split
@@ -178,8 +255,9 @@ pub fn diff(data: DiffData<'_>, width: usize, height: usize) -> WidgetOutput {
         }));
     }
     let mut lines = Vec::with_capacity(height);
+    let mut sources = Vec::new();
     for (index, row) in rows.iter().skip(start).take(shown).enumerate() {
-        let (line, before, after) = render_row(
+        let mut rendered = render_row(
             row,
             width,
             data.column,
@@ -188,14 +266,18 @@ pub fn diff(data: DiffData<'_>, width: usize, height: usize) -> WidgetOutput {
             numbered,
             split,
         );
-        if before > 0 || after > 0 {
+        if rendered.before > 0 || rendered.after > 0 {
             notices.push(notice(WidgetNoticeKind::ClippedColumns {
                 row: index,
-                before,
-                after,
+                before: rendered.before,
+                after: rendered.after,
             }));
         }
-        lines.push(line);
+        for span in &mut rendered.sources {
+            span.output_row = index;
+        }
+        sources.extend(rendered.sources);
+        lines.push(rendered.line);
     }
     while lines.len() < height.saturating_sub(1) {
         lines.push(WidgetLine::new(vec![Run::new(
@@ -206,7 +288,10 @@ pub fn diff(data: DiffData<'_>, width: usize, height: usize) -> WidgetOutput {
     if height > 0 {
         lines.push(footer(&mut notices, width, data.changes.files().is_empty()));
     }
-    WidgetOutput { lines, notices }
+    DiffProjection {
+        output: WidgetOutput { lines, notices },
+        sources,
+    }
 }
 
 fn digits(changes: &ChangeSet) -> (usize, usize) {
@@ -331,6 +416,8 @@ fn project_hunk<'a>(
             text,
             tone,
             eof: matches!(hunk.lines().get(index + 1), Some(DiffLine::NoNewline)),
+            file: file_index,
+            hunk: hunk_index,
             index,
         });
     }
@@ -458,7 +545,8 @@ fn source_line(
     width: usize,
     offset: usize,
     gutter: String,
-) -> (WidgetLine, usize, usize) {
+    side: DiffSide,
+) -> RenderedRow {
     let remaining = width.saturating_sub(gutter.len());
     let escaped = replacements(source.text);
     let suffix = if escaped > 0 {
@@ -473,11 +561,36 @@ fn source_line(
     };
     let body_width = remaining.saturating_sub(suffix.len());
     let (body, before, after) = window(source.text, body_width, offset);
+    let shown = source.text.chars().count() - before - after;
+    let start = gutter.len() + usize::from(before > 0 && body_width > 0);
+    let sources = if shown == 0 {
+        Vec::new()
+    } else {
+        vec![DiffSourceSpan {
+            output_row: 0,
+            output_columns: start..start + shown,
+            file: source.file,
+            hunk: source.hunk,
+            line: source.index,
+            source_codepoints: before..before + shown,
+            side,
+            line_number: match side {
+                DiffSide::Old => source.old,
+                DiffSide::New => source.new,
+            }
+            .expect("a projected source belongs to its displayed side"),
+        }]
+    };
     let mut runs = vec![Run::new(gutter, Tone::Muted), Run::new(body, source.tone)];
     if !suffix.is_empty() {
         runs.push(Run::new(suffix, Tone::Muted));
     }
-    (WidgetLine::new(runs), before, after)
+    RenderedRow {
+        line: WidgetLine::new(runs),
+        before,
+        after,
+        sources,
+    }
 }
 
 fn window(text: &str, width: usize, offset: usize) -> (String, usize, usize) {
@@ -512,9 +625,9 @@ fn render_row(
     new_digits: usize,
     numbered: bool,
     split: bool,
-) -> (WidgetLine, usize, usize) {
+) -> RenderedRow {
     match row {
-        Row::Text(runs) => styled_window(runs, width),
+        Row::Text(runs) => RenderedRow::without_source(styled_window(runs, width)),
         Row::Source(source) => {
             let gutter = if numbered {
                 format!(
@@ -526,7 +639,17 @@ fn render_row(
             } else {
                 prefix(*source).to_string().chars().take(width).collect()
             };
-            source_line(*source, width, offset, gutter)
+            source_line(
+                *source,
+                width,
+                offset,
+                gutter,
+                if source.tone == Tone::Removed {
+                    DiffSide::Old
+                } else {
+                    DiffSide::New
+                },
+            )
         }
         Row::Pair(old, new) => {
             let left_width = (width - 3) / 2;
@@ -534,11 +657,11 @@ fn render_row(
             let pane = |source: Option<Source<'_>>, width, digits, old_side| {
                 source.map_or_else(
                     || {
-                        (
+                        RenderedRow::without_source((
                             WidgetLine::new(vec![Run::new(" ".repeat(width), Tone::Plain)]),
                             0,
                             0,
-                        )
+                        ))
                     },
                     |source| {
                         source_line(
@@ -550,15 +673,27 @@ fn render_row(
                                 address(if old_side { source.old } else { source.new }, digits),
                                 prefix(source)
                             ),
+                            if old_side {
+                                DiffSide::Old
+                            } else {
+                                DiffSide::New
+                            },
                         )
                     },
                 )
             };
-            let (mut left, before_left, after_left) = pane(*old, left_width, old_digits, true);
-            let (right, before_right, after_right) = pane(*new, right_width, new_digits, false);
-            left.runs.push(Run::new(" | ", Tone::Accent));
-            left.runs.extend(right.runs);
-            (left, before_left + before_right, after_left + after_right)
+            let mut left = pane(*old, left_width, old_digits, true);
+            let mut right = pane(*new, right_width, new_digits, false);
+            for span in &mut right.sources {
+                span.output_columns.start += left_width + 3;
+                span.output_columns.end += left_width + 3;
+            }
+            left.line.runs.push(Run::new(" | ", Tone::Accent));
+            left.line.runs.extend(right.line.runs);
+            left.before += right.before;
+            left.after += right.after;
+            left.sources.extend(right.sources);
+            left
         }
         Row::Annotation(old, new) => {
             let marker = "\\ No newline at end of file";
@@ -567,7 +702,7 @@ fn render_row(
                 let right_width = width - 3 - left_width;
                 let (left, _, lost_left) = window(if *old { marker } else { "" }, left_width, 0);
                 let (right, _, lost_right) = window(if *new { marker } else { "" }, right_width, 0);
-                (
+                RenderedRow::without_source((
                     WidgetLine::new(vec![
                         Run::new(left, Tone::Muted),
                         Run::new(" | ", Tone::Accent),
@@ -575,9 +710,9 @@ fn render_row(
                     ]),
                     0,
                     lost_left + lost_right,
-                )
+                ))
             } else {
-                styled_window(&[Run::new(marker, Tone::Muted)], width)
+                RenderedRow::without_source(styled_window(&[Run::new(marker, Tone::Muted)], width))
             }
         }
         Row::Bars(added, removed, maximum) => {
@@ -586,7 +721,7 @@ fn render_row(
             let (mut left, lost_left) = stat_bar(*added, *maximum, "+", left_width, Tone::Added);
             let (right, lost_right) = stat_bar(*removed, *maximum, "-", right_width, Tone::Removed);
             left.runs.extend(right.runs);
-            (left, 0, lost_left + lost_right)
+            RenderedRow::without_source((left, 0, lost_left + lost_right))
         }
     }
 }

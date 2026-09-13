@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="840" height="488" viewBox="0 0 840 488" role="img" aria-labelledby="title description">
-<title id="title">Shawn's TUI widgets: heat graphs and meters</title><desc id="description">Actual donor functions rendered through ratatui with sample data: heat graph, mirrored history, gradient heat meters and labeled bars at 34, 68 and 92 percent. Source revision 4b8a747.</desc>
+<title id="title">Shawn's TUI widgets: heat graphs and meters</title><desc id="description">Heat graph, mirrored history, gradient heat meters and labeled bars at 34, 68 and 92 percent.</desc>
 <rect width="840" height="488" rx="12" fill="#141820"/><g font-family="Menlo,Consolas,monospace" font-size="15" xml:space="preserve">
 <text x="40" y="39" fill="#61afef" textLength="10" lengthAdjust="spacingAndGlyphs">S</text>
 <text x="50" y="39" fill="#61afef" textLength="10" lengthAdjust="spacingAndGlyphs">H</text>
