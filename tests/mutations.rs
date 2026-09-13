@@ -58,6 +58,30 @@ struct Mutation {
 /// several, when there is more than one way to break the thing it holds.
 const MUTATIONS: &[Mutation] = &[
     Mutation {
+        defect: "diff cells retain their text but lose every source location",
+        file: "src/widget/diff.rs",
+        from: "sources.extend(rendered.sources);",
+        to: "let _ = rendered.sources;",
+        expect_red: "visible_diff_source_spans_retain_their_model_and_side_addresses",
+        cargo_args: &["--test", "diff_sources"],
+    },
+    Mutation {
+        defect: "a source span borrows its hunk index as its file index",
+        file: "src/widget/diff.rs",
+        from: "file: source.file,",
+        to: "file: source.hunk,",
+        expect_red: "visible_diff_source_spans_retain_their_model_and_side_addresses",
+        cargo_args: &["--test", "diff_sources"],
+    },
+    Mutation {
+        defect: "the right pane retains a local start column in the full output row",
+        file: "src/widget/diff.rs",
+        from: "span.output_columns.start += left_width + 3;",
+        to: "span.output_columns.start += 0;",
+        expect_red: "visible_diff_source_spans_retain_their_model_and_side_addresses",
+        cargo_args: &["--test", "diff_sources"],
+    },
+    Mutation {
         defect: "the BSP host retains pane labels and dividers but drops the existing widgets inside them",
         file: "examples/support/bsp.rs",
         from: "let output = kind\n                .output(sample, usize::from(pane.width))\n                .expect(\"a pane owns a real widget\");",

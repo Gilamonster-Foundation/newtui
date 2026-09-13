@@ -556,6 +556,8 @@ The #19 display slice now supplies `diff(DiffData, width, height)` with Unified,
 Split and Stat geometry. `WidgetOutput::notices` retains typed diagnostics even
 for zero-cell previews, and `Tone` includes change semantics with a
 non-exhaustive palette vocabulary. See [the widget contract](diff-widget.md).
+`diff_with_sources` adds exact locations for visible source fragments so a host
+can compose syntax colors without reconstructing gutters or parsing display text.
 Source remains outside component views. `diff_view` and `changeset` interaction,
 host capture, staging and destructive discard are still separate work.
 
@@ -568,8 +570,8 @@ or runtime dependencies. The [interchange contract](diff-model.md) names its
 accepted metadata, canonicalization, and error domain. Source stays in this
 model, outside the component `View` and fingerprint.
 
-The display widget, linked `diff_view`, and `changeset` review component remain
-subsequent slices. The host still computes diffs, captures edit preimages and
+The linked `diff_view` and `changeset` review components remain subsequent
+slices. The host still computes diffs, captures edit preimages and
 postimages, supplies identity and retention, and fulfills Git/index/working-tree
 intents. Parsing a patch does not grant permission to apply it.
 

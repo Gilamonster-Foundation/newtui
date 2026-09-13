@@ -269,6 +269,11 @@ let changes = newtui::diff::from_unified(
 ).unwrap();
 let output = newtui::diff(newtui::DiffData::new(&changes), 40, 8);
 assert!(output.validate(40, 8).is_ok());
+let projection = newtui::diff_with_sources(newtui::DiffData::new(&changes), 40, 8);
+assert_eq!(projection.output, output);
+let addition = projection.sources.iter().find(|span| span.side == newtui::DiffSide::New).unwrap();
+assert_eq!(addition.line_number, 1);
+assert_eq!(addition.source_codepoints, 0..3);
 let tiny = newtui::diff(newtui::DiffData::new(&changes), 0, 0);
 assert!(!tiny.notices.is_empty());
 ```
