@@ -192,13 +192,10 @@ bounded vocabulary with zero violations and `exhausted: true`.
 
 ### Package B — the widget family and its data seam (blocks F, G)
 
-The display family, extracted for reuse across harnesses. `gila-monitor-tui`
-has the right shape already: `build_net_butterfly_line` is a **pure builder**
-with `draw_net_butterfly_meter` a thin wrapper. Generalise that split.
-
-Donors, in [gilabot/gila-monitor-tui/src/ui](https://github.com/hartsock/gilabot/tree/main/gila-monitor-tui/src/ui).
-The [catalog](WIDGETS.md) links each donor function and distinguishes existing
-implementations from planned library variants.
+The display family separates pure cell builders from thin renderer adapters.
+The [complete widget sources](../widget-sources/README.md) are included in this
+repository. The [catalog](WIDGETS.md) links available library APIs and the
+included implementations awaiting their reusable data interfaces.
 
 | Widget | Source |
 |---|---|

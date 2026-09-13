@@ -8,10 +8,10 @@ gauge, bar, core grid and diff display; ratio BSP panel geometry; the optional
 ratatui adapter; Python bindings; and the
 [component API](../src/component.rs), [view data](../src/view.rs) and
 [state explorer](../src/explore.rs).
-**Donor widgets** identify the originating implementations and remaining extractions.
+**Additional widget sources** are included in this repository for the remaining extractions.
 **Planned widgets** describe additions that have not landed in this library.
 
-This is the front door — what is available, donated, or only planned. For the
+This is the front door — what is available, included as source, or planned. For the
 deep inventory of what the crate actually ships today, with per-component
 acceptance properties and runnable examples, see the [component, widget, and layout
 catalogue](CATALOG.md); for how components and widgets are both tested, the
@@ -54,7 +54,6 @@ Gilamonster cockpit adoption remain planned.
 
 ## Featured: heat graphs and meters
 
-Shawn's favorites from [gila-monitor-tui's metrics module][metrics].
 Compact, colored charts built around the `░▒█` glyphs.
 
 ![Live newtui catalog showing the heat graph](widgets/generated/catalog.png)
@@ -72,17 +71,13 @@ shows the meter family; individual behavior demos remain in the catalogue.
 The [unavailable backend](widgets/generated/catalog-error.png) fixture keeps
 the active model visible and explains why its dial cannot move.
 
-The earlier [donor preview](widgets/metrics-preview.svg) was rendered from
-gila-monitor-tui at [`4b8a747`](https://github.com/hartsock/gilabot/commit/4b8a7470a78226f62a82bab40a6738ae2d7ee048).
-The source links below preserve that extraction provenance.
-
-| Donor widget | What makes it useful | Source |
+| Widget | What makes it useful | Library source |
 |---|---|---|
-| Heat graph | Rolling history across several rows, with color indicating each sample's intensity | [`draw_graph`][heat-graph] |
-| Mirrored history | Normal and inverted graphs compose into opposing histories for two related series | [`draw_graph_inverted`][inverted-graph] |
-| Heat meter | A single row with a positional color gradient, a label, and a value | [`draw_heat_meter`][heat-meter] |
-| Labeled bar | A compact amount or percentage with units or a custom value label | [`draw_bar_line` / `draw_bar_with_label`][labeled-bar] |
-| Per-core history | One compact history and current value per core; generalize to any named series | [`draw_cpu_cores`][core-history] |
+| Heat graph | Rolling history across several rows, with color indicating each sample's intensity | [`sparkline`](../src/widget/sparkline.rs) |
+| Mirrored history | Normal and inverted graphs compose into opposing histories for two related series | [`SparkDirection`](../src/widget/sparkline.rs) |
+| Heat meter | A single row with a positional color gradient, a label, and a value | [`heat_meter`](../src/widget/heat_meter.rs) |
+| Labeled bar | A compact amount or percentage with units or a custom value label | [`bar`](../src/widget/bar.rs) |
+| Per-core history | One compact history and current value per core; generalize to any named series | [`core_grid`](../src/widget/core_grid.rs) |
 
 ## Machine cards
 
@@ -91,8 +86,8 @@ the hardware, rather than name the computer it was first drawn on.
 
 | Proposed variant | Shows | Extraction status |
 |---|---|---|
-| Machine card | CPU, system memory, storage, and network activity | Donor: [`draw_machine_cell`][machine-card] |
-| GPU machine card, separate memory | CPU and GPU activity, with separate system-memory and device-memory charts | Donor: [the GPU-machine cell][gpu-card]; generalize its name and inputs |
+| Machine card | CPU, system memory, storage, and network activity | [Implementation included](../widget-sources/metrics.rs); reusable API next |
+| GPU machine card, separate memory | CPU and GPU activity, with separate system-memory and device-memory charts | [Implementation included](../widget-sources/metrics.rs); generalize its name and inputs |
 | GPU machine card, unified memory | CPU and GPU activity around one shared memory-capacity chart | Planned variant of the GPU card |
 
 A **DGX preset** can select the capabilities and memory layout appropriate to
@@ -103,20 +98,22 @@ when the supplied measurements support it.
 The host supplies identity, capabilities, metrics, histories, and memory pools.
 See the [machine-card extraction design](PLAN.md#machine-cards-describe-capabilities).
 
-## More donor widgets
+## More widgets
 
-These also exist in [gila-monitor-tui's UI modules][gila-ui].
+The [complete implementation sources](../widget-sources/README.md) are included
+here. Butterfly and gauge already have reusable library APIs; the remaining
+rows have source available and are being adapted into the library.
 
 | Widget | Use it for | Source |
 |---|---|---|
-| Butterfly meter | Two rate bars around a center divider, with shared scaling and rate labels | [`build_net_butterfly_line`][butterfly] |
-| Activity heat row | Compress a history of counts into a row of density glyphs | [`build_heatrow_commits`][activity] |
-| Status history | Scan pass, fail, running, and cancelled results as colored cells | [`build_heatrow_status`][status] |
-| Budget gauge | Compare spending or consumption against a limit | [`draw_gauge`][gauge] |
-| Animated character | Give a harness an expressive ASCII companion with activity states and reaction text | [`character::draw`][character] |
-| Resource table | Scroll through measured entities with sorting, filters, and formatted columns | [Process and pod tables][resource-table] |
-| Adaptive metrics list | Fit multiple entities using expanded graphs or compact meter rows | [`summary_layout`][summary-layout] |
-| Scrollbar | Show a list position in one column | [`draw_scrollbar`][scrollbar] |
+| Butterfly meter | Two rate bars around a center divider, with shared scaling and rate labels | [`butterfly`](../src/widget/butterfly.rs) |
+| Activity heat row | Compress a history of counts into a row of density glyphs | [`build_heatrow_commits`](../widget-sources/swarm.rs) |
+| Status history | Scan pass, fail, running, and cancelled results as colored cells | [`build_heatrow_status`](../widget-sources/swarm.rs) |
+| Budget gauge | Compare spending or consumption against a limit | [`gauge`](../src/widget/gauge.rs) |
+| Animated character | Give a harness an expressive ASCII companion with activity states and reaction text | [`character::draw`](../widget-sources/character.rs) |
+| Resource table | Scroll through measured entities with sorting, filters, and formatted columns | [Process and pod tables](../widget-sources/machine_tab.rs) |
+| Adaptive metrics list | Fit multiple entities using expanded graphs or compact meter rows | [`summary_layout`](../widget-sources/metrics.rs) |
+| Scrollbar | Show a list position in one column | [`draw_scrollbar`](../widget-sources/metrics.rs) |
 
 ## Controls from Newt
 
@@ -133,8 +130,8 @@ below are donors for future extraction.
 | Tab strip | Lay out and select open sessions | [`tab_bar.rs`][tabs] |
 
 The [extraction plan](PLAN.md#package-a--move-settings_panel-across-first-blocks-c-e)
-starts with settings. A separate [settings-list donor][gila-settings] in
-gila-monitor-tui includes text fields, checkboxes, option cycling, and scrolling.
+starts with settings. The included [settings-list implementation](../widget-sources/settings.rs)
+also has text fields, checkboxes, option cycling, and scrolling.
 
 ## Planned workspace widgets
 
@@ -164,24 +161,6 @@ draws the result, and carries out requested actions.
 
 [← README](../README.md) · [Development plan](PLAN.md)
 
-[metrics]: https://github.com/hartsock/gilabot/blob/main/gila-monitor-tui/src/ui/metrics.rs
-[gila-ui]: https://github.com/hartsock/gilabot/tree/main/gila-monitor-tui/src/ui
-[heat-graph]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/metrics.rs#L467
-[inverted-graph]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/metrics.rs#L523
-[heat-meter]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/metrics.rs#L237
-[labeled-bar]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/metrics.rs#L590
-[core-history]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/metrics.rs#L83
-[machine-card]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/metrics.rs#L280
-[gpu-card]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/metrics.rs#L51
-[summary-layout]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/metrics.rs#L773
-[scrollbar]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/metrics.rs#L1199
-[butterfly]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/swarm.rs#L452
-[activity]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/swarm.rs#L265
-[status]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/swarm.rs#L295
-[gauge]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/budget.rs#L58
-[character]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/character.rs#L269
-[resource-table]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/machine_tab.rs#L357
-[gila-settings]: https://github.com/hartsock/gilabot/blob/4b8a7470a78226f62a82bab40a6738ae2d7ee048/gila-monitor-tui/src/ui/settings.rs#L885
 [newt]: https://github.com/Gilamonster-Foundation/newt-agent
 [settings]: https://github.com/Gilamonster-Foundation/newt-agent/blob/main/newt-tui/src/settings_panel.rs
 [backend]: https://github.com/Gilamonster-Foundation/newt-agent/blob/main/newt-tui/src/backend_panel.rs
