@@ -5,7 +5,10 @@ use std::io;
 #[allow(dead_code)]
 #[path = "support/fixtures.rs"]
 mod fixtures;
-use fixtures::{notice_text, settings_seed, BspPreview, DiffPreview, Kind as WidgetKind, Scenario};
+use fixtures::{
+    notice_text, settings_seed, BspPreview, DiffPreview, Kind as WidgetKind, LinkedPreview,
+    Scenario,
+};
 use newtui::components::settings_panel::SettingsPanel;
 use newtui::{ratatui_lines, Component, Flow, Key, Tone, View, WidgetOutput};
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -43,18 +46,21 @@ fn run(terminal: &mut DefaultTerminal, demo: &mut Demo) -> io::Result<()> {
 
 enum Demo {
     Settings(SettingsDemo),
-    Widget(WidgetDemo),
+    Widget(Box<WidgetDemo>),
 }
 
 impl Demo {
     fn named(name: &str) -> Option<Self> {
         match WidgetKind::from_name(name)? {
             WidgetKind::Settings => Some(Self::Settings(SettingsDemo::new())),
-            kind => Some(Self::Widget(WidgetDemo::new(kind, kind.demo_widths()))),
+            kind => Some(Self::Widget(Box::new(WidgetDemo::new(
+                kind,
+                kind.demo_widths(),
+            )))),
         }
     }
 
-    fn render(&self, frame: &mut Frame<'_>) {
+    fn render(&mut self, frame: &mut Frame<'_>) {
         match self {
             Self::Settings(demo) => demo.render(frame),
             Self::Widget(demo) => demo.render(frame),
@@ -182,6 +188,7 @@ struct WidgetDemo {
     scenario: Scenario,
     diff: DiffPreview,
     bsp: BspPreview,
+    linked: LinkedPreview,
     notice_index: usize,
 }
 
@@ -194,12 +201,16 @@ impl WidgetDemo {
             scenario: Scenario::Normal,
             diff: DiffPreview::default(),
             bsp: BspPreview::default(),
+            linked: LinkedPreview::default(),
             notice_index: 0,
         }
     }
 
     fn handle(&mut self, event: KeyEvent) -> bool {
-        if matches!(self.kind, WidgetKind::Diff | WidgetKind::Bsp) {
+        if matches!(
+            self.kind,
+            WidgetKind::Diff | WidgetKind::Bsp | WidgetKind::LinkedPanes
+        ) {
             if event
                 .modifiers
                 .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
@@ -225,11 +236,13 @@ impl WidgetDemo {
                     };
                     self.diff = DiffPreview::default();
                     self.bsp = BspPreview::default();
+                    self.linked = LinkedPreview::new(self.scenario);
                     self.notice_index = 0;
                 }
                 KeyCode::Char('r') | KeyCode::F(4) => {
                     self.diff = DiffPreview::default();
                     self.bsp = BspPreview::default();
+                    self.linked = LinkedPreview::new(self.scenario);
                     self.notice_index = 0;
                     self.at = 0;
                 }
@@ -241,6 +254,8 @@ impl WidgetDemo {
                     if let Some(key) = map_key(event) {
                         if self.kind == WidgetKind::Bsp {
                             self.bsp.handle(key);
+                        } else if self.kind == WidgetKind::LinkedPanes {
+                            self.linked.handle(key);
                         } else {
                             self.diff.handle(key);
                         }
@@ -251,18 +266,26 @@ impl WidgetDemo {
         match event.code {
             KeyCode::Left => self.at = self.at.saturating_add(1).min(self.widths.len() - 1),
             KeyCode::Right => self.at = self.at.saturating_sub(1),
+            KeyCode::Esc if self.kind == WidgetKind::LinkedPanes => {}
             KeyCode::Char('q') | KeyCode::Esc => return true,
             _ => {}
         }
         false
     }
 
-    fn render(&self, frame: &mut Frame<'_>) {
+    fn render(&mut self, frame: &mut Frame<'_>) {
         let width = self.widths[self.at];
-        let output = self.output(width);
-        let lines = ratatui_lines(&output, tone_style);
+        let mut output = self.output(width);
         let chart_height = u16::try_from(output.lines.len()).unwrap_or(u16::MAX);
         let chart_area = self.chart_area(frame.area(), width, chart_height);
+        if self.kind == WidgetKind::LinkedPanes {
+            let inner = self.chart_block().inner(chart_area);
+            self.linked.resize(inner.width, inner.height);
+            output = self
+                .linked
+                .output(usize::from(inner.width), usize::from(inner.height));
+        }
+        let lines = ratatui_lines(&output, tone_style);
         // Header and footer each draw one line. Giving either a padding row
         // would make the recorder steal the only content row from a short widget.
         let layout = self.layout(frame.area(), chart_height);
@@ -277,6 +300,12 @@ impl WidgetDemo {
                 Line::from(format!(
                     "{} / {} · {width} columns",
                     self.bsp.size_name(),
+                    self.scenario.name()
+                ))
+            } else if self.kind == WidgetKind::LinkedPanes {
+                Line::from(format!(
+                    "{} / {} · {width} columns",
+                    self.linked.mode_name(),
                     self.scenario.name()
                 ))
             } else {
@@ -294,9 +323,14 @@ impl WidgetDemo {
             layout[0],
         );
         frame.render_widget(Paragraph::new(lines).block(self.chart_block()), chart_area);
-        if matches!(self.kind, WidgetKind::Diff | WidgetKind::Bsp) {
+        if matches!(
+            self.kind,
+            WidgetKind::Diff | WidgetKind::Bsp | WidgetKind::LinkedPanes
+        ) {
             frame.render_widget(
-                Paragraph::new(if self.kind == WidgetKind::Bsp {
+                Paragraph::new(if self.kind == WidgetKind::LinkedPanes {
+                    self.linked.status()
+                } else if self.kind == WidgetKind::Bsp {
                     self.bsp.status(
                         self.scenario,
                         u16::try_from(width).expect("demo width fits u16"),
@@ -316,6 +350,8 @@ impl WidgetDemo {
                 "←→ size · ↑↓ rows · Shift-←→ columns · g layout · e context\nf fixture · n notice · Home scroll reset · r reset · q quit"
             } else if self.kind == WidgetKind::Bsp {
                 "Tab divider · ↑↓ ratio · s shrink/restore · x reject NaN\n←→ size · f fixture · r reset · q quit"
+            } else if self.kind == WidgetKind::LinkedPanes {
+                "↑↓/Pg/Home/End cursor · Tab focus · l mode · Esc cancel\n> cursor · = mapped row · @ window top · ←→ size · f fixture · r reset · q quit"
             } else {
                 "← narrower   → wider   q quit"
             })
@@ -328,6 +364,8 @@ impl WidgetDemo {
     fn output(&self, width: usize) -> WidgetOutput {
         if self.kind == WidgetKind::Diff {
             self.diff.output(self.scenario, width, 16)
+        } else if self.kind == WidgetKind::LinkedPanes {
+            self.linked.output(width, 16)
         } else if self.kind == WidgetKind::Bsp {
             self.bsp.output(self.scenario, width, 16)
         } else {
@@ -338,7 +376,10 @@ impl WidgetDemo {
     }
 
     fn layout(&self, area: Rect, chart_height: u16) -> [Rect; 4] {
-        let is_rich = matches!(self.kind, WidgetKind::Diff | WidgetKind::Bsp);
+        let is_rich = matches!(
+            self.kind,
+            WidgetKind::Diff | WidgetKind::Bsp | WidgetKind::LinkedPanes
+        );
         let host = centered(
             area,
             if is_rich { 106 } else { 42 },
@@ -386,6 +427,7 @@ pub(crate) fn assert_recorded_demos_render_content() {
         "core_grid",
         "diff",
         "bsp",
+        "linked_panes",
     ] {
         let Some(Demo::Widget(mut demo)) = Demo::named(name) else {
             panic!("the `{name}` recording names a widget demo");
@@ -398,7 +440,7 @@ pub(crate) fn assert_recorded_demos_render_content() {
             // The short tapes expose six rows; the taller recordings have room
             // for their four-row widgets. Keeping the short case constrained is
             // what exercises the release artifact instead of a roomier fiction.
-            let recorder_height = if matches!(name, "diff" | "bsp") {
+            let recorder_height = if matches!(name, "diff" | "bsp" | "linked_panes") {
                 28
             } else if height == 1 {
                 6
@@ -408,7 +450,7 @@ pub(crate) fn assert_recorded_demos_render_content() {
             let frame_area = Rect::new(
                 0,
                 0,
-                if matches!(name, "diff" | "bsp") {
+                if matches!(name, "diff" | "bsp" | "linked_panes") {
                     120
                 } else {
                     64
@@ -526,6 +568,102 @@ fn diff_demo_keys_keep_the_real_widget_visible_across_layouts_and_fixtures() {
 #[cfg(test)]
 fn area_has_content(buffer: &ratatui::buffer::Buffer, area: Rect) -> bool {
     (area.y..area.bottom()).any(|y| (area.x..area.right()).any(|x| buffer[(x, y)].symbol() != " "))
+}
+
+#[cfg(test)]
+#[test]
+fn linked_demo_forwards_navigation_and_renders_the_component_window() {
+    use newtui::components::linked_panes::{LinkMode, PaneSide};
+    use ratatui::{backend::TestBackend, Terminal};
+    let mut demo = WidgetDemo::new(
+        WidgetKind::LinkedPanes,
+        WidgetKind::LinkedPanes.demo_widths(),
+    );
+    let press = |demo: &mut WidgetDemo, code| demo.handle(KeyEvent::new(code, KeyModifiers::NONE));
+    for scenario in Scenario::ALL {
+        assert_eq!(demo.scenario, scenario);
+        for _ in 0..4 {
+            press(&mut demo, KeyCode::Right);
+        }
+        for width in WidgetKind::LinkedPanes.demo_widths() {
+            assert_eq!(demo.widths[demo.at], *width);
+            let mut terminal = Terminal::new(TestBackend::new(120, 28)).unwrap();
+            terminal.draw(|frame| demo.render(frame)).unwrap();
+            let buffer = terminal.backend().buffer();
+            let area = demo
+                .chart_block()
+                .inner(demo.chart_area(buffer.area, *width, 16));
+            let output = demo
+                .linked
+                .output(usize::from(area.width), usize::from(area.height));
+            for (row, expected) in output.lines.iter().enumerate() {
+                let actual: String = (area.x..area.right())
+                    .map(|x| buffer[(x, area.y + u16::try_from(row).unwrap())].symbol())
+                    .collect();
+                assert_eq!(actual, expected.text(), "{scenario:?}/{width}");
+            }
+            let note = demo.layout(buffer.area, 16)[2];
+            let text: String = (note.y..note.bottom())
+                .flat_map(|y| (note.x..note.right()).map(move |x| (x, y)))
+                .map(|point| buffer[point].symbol())
+                .collect();
+            for line in demo.linked.status().lines() {
+                assert!(text.contains(line), "missing {line:?}");
+            }
+            press(&mut demo, KeyCode::Left);
+        }
+        press(&mut demo, KeyCode::Char('f'));
+    }
+    let mut terminal = Terminal::new(TestBackend::new(80, 14)).unwrap();
+    terminal.draw(|frame| demo.render(frame)).unwrap();
+    let area = demo.chart_block().inner(demo.chart_area(
+        terminal.backend().buffer().area,
+        demo.widths[demo.at],
+        16,
+    ));
+    let page = usize::from(area.height.saturating_sub(u16::from(area.height > 1)));
+    assert_eq!(
+        demo.linked
+            .component()
+            .unwrap()
+            .position(PaneSide::First)
+            .height,
+        page
+    );
+    press(&mut demo, KeyCode::PageDown);
+    assert_eq!(
+        demo.linked
+            .component()
+            .unwrap()
+            .position(PaneSide::First)
+            .cursor,
+        Some(page.clamp(1, 10))
+    );
+    let before = demo.linked.component().unwrap().clone();
+    press(&mut demo, KeyCode::Tab);
+    assert_eq!(
+        demo.linked.component().unwrap().relation(),
+        before.relation()
+    );
+    press(&mut demo, KeyCode::Char('l'));
+    assert_eq!(
+        demo.linked.component().unwrap().mode(),
+        LinkMode::Proportional
+    );
+    press(&mut demo, KeyCode::Char('l'));
+    assert_eq!(demo.linked.component().unwrap().mode(), LinkMode::Unlinked);
+    let before = demo.linked.component().unwrap().view();
+    press(&mut demo, KeyCode::Enter);
+    press(&mut demo, KeyCode::Char('x'));
+    demo.handle(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::ALT));
+    assert_eq!(demo.linked.component().unwrap().view(), before);
+    assert!(!press(&mut demo, KeyCode::Esc));
+    assert!(demo.linked.status().contains("Esc cancelled"));
+    press(&mut demo, KeyCode::Down);
+    assert_eq!(demo.linked.component().unwrap().view(), before);
+    press(&mut demo, KeyCode::Char('r'));
+    assert_eq!(demo.linked.component().unwrap().mode(), LinkMode::Locked);
+    assert!(press(&mut demo, KeyCode::Char('q')));
 }
 
 #[cfg(test)]

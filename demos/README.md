@@ -44,7 +44,7 @@ if recording fails. The tapes wait for the live catalog before taking a frame.
 The catalog recordings show ordinary chart data, the one-line meter family,
 a narrow viewport, an unavailable backend and a light palette. Still PNGs live in
 `docs/widgets/generated/`; `catalog/catalog.gif` and `catalog/catalog.png`
-are the animated walkthrough. Those overview captures supplement the nine
+are the animated walkthrough. Those overview captures supplement the ten
 per-piece behavior demos below. They never substitute for exercising apply,
 cancel, overflow and empty input.
 
@@ -68,6 +68,7 @@ and the test are describing the same component:
 | `core_grid` | two histories retaining their row order while missing core rows stay visibly empty |
 | `diff` | unified, split and stat layouts; folded/expanded context; row windows; narrow fallback; empty and binary changes; long Unicode source with notices outside the preview |
 | `bsp` | real widget panes in ratio geometry; selected dividers; ratio edits; exact shrink/restore; narrow and empty areas; rejected NaN edits with geometry status outside the preview |
+| `linked_panes` | host-owned old/new ASCII text in BSP geometry; unequal correspondence, gap fallback and boundary markers; cursor-driven page windows, focus-only Tab, three link modes, empty/rejected inputs and Esc cancellation |
 
 The diff demo and catalog share the same parsed fixtures and presentation
 state. In the catalog, launch `--item diff`; optional `--geometry`,
@@ -85,5 +86,14 @@ focuses the catalog preview, Tab selects a divider, up/down changes its ratio,
 preview width; F1 returns to browsing. The named `demo bsp` uses the same keys,
 with `f` for fixtures and `q` to exit. Status compares the last demo edit at the
 current viewport size; it never measures pane content or runs reflow timers.
+
+The linked-pane demo shares actual `LinkedPanes` navigation and ASCII source
+fixtures with `just catalog --item linked_panes --width 88`. Arrow and page
+keys move the selected row; Tab changes focus without remapping; `l` cycles
+Locked, Proportional and Unlinked modes. An `=` marks a mapped row; an anchor
+is a boundary reported outside the source, never a highlighted adjacent row.
+`>` and `.` distinguish the active and other stored cursors; `@` gives the
+window's first row. The named host uses `f` for fixtures and `r` for reset.
+Esc shows cancellation without closing the recorder, and `q` closes it.
 
 A demo that only shows the happy path is advertising, not documentation.

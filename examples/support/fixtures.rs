@@ -3,6 +3,9 @@
 #[path = "bsp.rs"]
 mod bsp;
 pub use bsp::BspPreview;
+#[path = "linked.rs"]
+mod linked;
+pub use linked::LinkedPreview;
 
 use newtui::components::settings_panel::{Backend, Choice, Model, Setting, SettingsSeed};
 use newtui::diff::{from_unified, ChangeSet, DiffLine};
@@ -32,6 +35,7 @@ pub enum Kind {
     CoreGrid,
     Diff,
     Bsp,
+    LinkedPanes,
 }
 
 /// The registry intentionally names only shipped library exports.
@@ -99,6 +103,13 @@ pub const ENTRIES: &[Entry] = &[
         data: "Pane IDs, split ratios and an area. Existing widgets supply the samples.",
         kind: Kind::Bsp,
     },
+    Entry {
+        id: "linked_panes",
+        name: "Linked panes",
+        description: "Follow a selected source row across unequal regions. Keep each cursor visible.",
+        data: "Old/new ASCII text, row counts, monotone ranges and BSP rectangles. Navigation stays in the component.",
+        kind: Kind::LinkedPanes,
+    },
 ];
 
 /// Bounded, reproducible input domains; no clocks or metric collectors.
@@ -148,6 +159,9 @@ impl Scenario {
 
     pub fn note(self, kind: Kind) -> &'static str {
         match (self, kind) {
+            (Self::Empty, Kind::LinkedPanes) => "Both sources are empty; neither pane invents a cursor.",
+            (Self::Error, Kind::LinkedPanes) => "A crossing map is rejected by the real constructor; source remains available.",
+            (_, Kind::LinkedPanes) => "> active cursor, . other cursor, = mapped row. An anchor is a boundary, never a row. @ gives the first visible row.",
             (Self::Empty, Kind::Bsp) => "Empty geometry retains every pane ID and split path.",
             (Self::Error, Kind::Bsp) => {
                 "A nonfinite ratio edit is rejected without changing the layout."
@@ -217,12 +231,13 @@ impl Kind {
             Self::CoreGrid => "cpu cores",
             Self::Diff => "code changes",
             Self::Bsp => "panel layout",
+            Self::LinkedPanes => "linked panes",
         }
     }
 
     pub fn demo_widths(self) -> &'static [usize] {
         match self {
-            Self::Diff | Self::Bsp => &[88, 44, 12, 1],
+            Self::Diff | Self::Bsp | Self::LinkedPanes => &[88, 44, 12, 1],
             Self::Butterfly => &[24, 8, 1],
             Self::HeatMeter | Self::Bar => &[24, 10, 4],
             Self::Gauge => &[24, 12, 4],
@@ -265,6 +280,11 @@ impl Kind {
             Self::Settings => return None,
             Self::Diff => DiffPreview::default().output(scenario, width, 16),
             Self::Bsp => BspPreview::default().output(scenario, width, 16),
+            Self::LinkedPanes => {
+                let mut preview = LinkedPreview::new(scenario);
+                preview.resize(u16::try_from(width).expect("host width fits u16"), 16);
+                preview.output(width, 16)
+            }
             Self::Sparkline => sparkline(samples, maximum, width, 4, SparkDirection::Up),
             Self::Butterfly => butterfly(
                 if scenario == Scenario::Normal

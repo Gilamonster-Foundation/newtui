@@ -6,10 +6,10 @@ Source revision: d119ece7672bb980af93a1d03d92c30ec2a4f61c
 Recorder: vhs version v0.11.0 (c6af91a)
 Working tree: includes the reviewed changes accompanying these captures.
 
-## demos/catalog/bsp.tape
+## demos/catalog/linked_panes.tape
 
 ```text
-Output demos/catalog/bsp.gif
+Output demos/catalog/linked_panes.gif
 
 Set Shell "bash"
 Set Width 1500
@@ -21,29 +21,40 @@ Set CursorBlink false
 Set Padding 16
 
 Hide
-Type `"$NEWTUI_CATALOG_BIN" --item bsp --width 88 --theme dark`
+Type `"$NEWTUI_CATALOG_BIN" --item linked_panes --width 88 --theme dark`
 Enter
 Wait+Screen /LIVE CATALOG/
 Sleep 1s
 Show
 Enter
+Down 2
 Sleep 1s
-Screenshot docs/widgets/generated/bsp.png
-Sleep 1s
-Type "s"
-Sleep 1s
-Type "s"
+Screenshot docs/widgets/generated/linked-panes.png
 Sleep 1s
 Tab
-Up
+Sleep 800ms
+Tab
+Down 4
 Sleep 1s
-Down
+Screenshot docs/widgets/generated/linked-panes-anchor.png
+Sleep 1s
+Down 2
+Sleep 1s
+Type "l"
+Sleep 1s
+Type "l"
+Up 2
 Sleep 1s
 Escape
 Type "rf"
 Enter
+Left 2
 Sleep 1s
-Screenshot docs/widgets/generated/bsp-narrow.png
+Screenshot docs/widgets/generated/linked-panes-narrow.png
+Sleep 1s
+Escape
+Type "f"
+Enter
 Sleep 1s
 Escape
 Type "f"
@@ -52,9 +63,7 @@ Sleep 1s
 Escape
 Type "f"
 Enter
-Type "x"
-Sleep 1s
-Screenshot docs/widgets/generated/bsp-error.png
+PageDown 2
 Sleep 1s
 Escape
 Type "q"

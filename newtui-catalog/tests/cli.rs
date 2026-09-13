@@ -28,7 +28,8 @@ fn help_and_registry_are_available_without_a_terminal() {
             "bar",
             "core_grid",
             "diff",
-            "bsp"
+            "bsp",
+            "linked_panes"
         ]
     );
 }

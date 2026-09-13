@@ -486,6 +486,13 @@ than the viewport), reports overflow rather than clipping silently, and
 
 ### Package J — the linked two-pane (needs F)
 
+**Keyboard slice:** `components::linked_panes` supplies validated monotone
+numeric correspondence, cursor-first linked/proportional/unlinked navigation,
+independent focus, bounded windows, and explicit missing-counterpart evidence.
+See [the contract](linked-panes.md). The 17-key fixture exhausts 272 states and
+4,624 transitions. Document text remains host-owned. Independent wheel/top-anchor
+scrolling and the diff-specific `diff_view` composition remain later slices.
+
 Three things on the wish list are one component: markdown **edit/preview**, a
 diff's **old/new**, and a **commit preview**. Each is two surfaces over one
 subject with a mapping between them — scroll the left, the right follows the
