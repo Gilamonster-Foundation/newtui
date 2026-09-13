@@ -2,7 +2,7 @@
 
 Generated from the real terminal host using the checked-in tapes below.
 
-Source revision: 1ac4ee8b6211d33efb7ac5e09c63dccd72c439a2
+Source revision: ce793a7239d83417adcd5c2e4bcdf8286aa3e66c
 Recorder: vhs version v0.11.0 (c6af91a)
 Working tree: includes the reviewed changes accompanying these captures.
 

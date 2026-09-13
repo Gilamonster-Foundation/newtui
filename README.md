@@ -21,9 +21,11 @@ default.
 
 ## Status
 
-The library ships a settings component, six chart widgets, the state explorer,
-an optional ratatui adapter and Python bindings. The catalog distinguishes these
-from donor and planned components. Every shipped piece has an animated demo.
+The library ships a settings component, six chart widgets, a diff display,
+BSP pane geometry, the state explorer, an optional
+[ratatui adapter](docs/renderer-compatibility.md) and Python bindings. The catalog
+distinguishes these from donor and planned components. Every shipped piece has
+an animated demo.
 
 Explore the real widgets from this checkout:
 
