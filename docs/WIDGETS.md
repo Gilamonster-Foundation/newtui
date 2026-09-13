@@ -3,8 +3,9 @@
 Shawn's custom TUI widgets, developed in his terminal harnesses and being
 collected into a reusable Rust library.
 
-**Available in newtui:** the settings panel; sparkline, butterfly, heat meter,
-gauge, bar, core grid and diff display; linked pane navigation; ratio BSP panel geometry; the optional
+**Available in newtui:** the settings panel; sparkline, butterfly, butterfly history,
+heat meter, gauge, bar, core grid and diff display; linked pane navigation;
+ratio BSP panel geometry; the optional
 ratatui adapter; Python bindings; and the
 [component API](../src/component.rs), [view data](../src/view.rs) and
 [state explorer](../src/explore.rs).
@@ -74,7 +75,18 @@ composition remain later slices.
 
 Compact, colored charts built around the `░▒█` glyphs.
 
-![Live newtui catalog showing the heat graph](widgets/generated/catalog.png)
+![Current transmit and receive rates above their flowing butterfly history](../demos/butterfly.gif)
+
+The [butterfly history](butterfly-history.md) builds changing wings around a
+shared center, while the compact meter shows the latest pair of readings.
+The [core demo](../demos/core_grid.gif) shows twelve independent histories with
+bursts, cooling periods, and matching current percentages. Sparkline, heat meter,
+gauge, and bar demos also lead with changing data; resizing is a secondary check.
+
+Launch `just catalog --item core_grid --animate` or
+`just catalog --item butterfly_history --animate` to explore the synthetic
+streams. Enter focuses the preview; Space pauses/resumes, `.` steps one sample,
+and `r` resets. Real sampling and clocks remain in the host application.
 
 This is the running catalog, drawing newtui's own builders with reproducible
 host data. Launch `just catalog` from the repository, select a piece, and try
@@ -93,6 +105,7 @@ the active model visible and explains why its dial cannot move.
 |---|---|---|
 | Heat graph | Rolling history across several rows, with color indicating each sample's intensity | [`sparkline`](../src/widget/sparkline.rs) |
 | Mirrored history | Normal and inverted graphs compose into opposing histories for two related series | [`SparkDirection`](../src/widget/sparkline.rs) |
+| Butterfly history | Scrolling sample pairs form independent wings around a stable center, using shared scaling | [`butterfly_history`](../src/widget/butterfly_history.rs) |
 | Heat meter | A single row with a positional color gradient, a label, and a value | [`heat_meter`](../src/widget/heat_meter.rs) |
 | Labeled bar | A compact amount or percentage with units or a custom value label | [`bar`](../src/widget/bar.rs) |
 | Per-core history | One compact history and current value per core; generalize to any named series | [`core_grid`](../src/widget/core_grid.rs) |

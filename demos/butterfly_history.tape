@@ -1,8 +1,8 @@
-Output demos/sparkline.gif
+Output demos/butterfly_history.gif
 
 Set Shell "bash"
-Set Width 1200
-Set Height 500
+Set Width 1320
+Set Height 940
 Set FontSize 16
 Set FontFamily "Menlo"
 Set Theme "Catppuccin Mocha"
@@ -10,12 +10,12 @@ Set CursorBlink false
 Set Padding 16
 
 Hide
-Type `"${NEWTUI_DEMO_BIN:-./target/debug/examples/demo}" sparkline`
+Type `"${NEWTUI_DEMO_BIN:-./target/debug/examples/demo}" butterfly_history`
 Enter
 Wait+Screen /SYNTHETIC LIVE/
 Sleep 500ms
 Show
-Sleep 10s
+Sleep 12s
 Left
 Sleep 1s
 Right

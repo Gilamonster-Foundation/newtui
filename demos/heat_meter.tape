@@ -1,26 +1,34 @@
 Output demos/heat_meter.gif
 
 Set Shell "bash"
-Set Width 620
-Set Height 260
-Set FontSize 18
+Set Width 820
+Set Height 360
+Set FontSize 16
 Set FontFamily "Menlo"
 Set Theme "Catppuccin Mocha"
 Set CursorBlink false
+Set Padding 16
 
 Hide
 Type `"${NEWTUI_DEMO_BIN:-./target/debug/examples/demo}" heat_meter`
 Enter
-Wait+Screen /requested width:/
-Sleep 1s
+Wait+Screen /SYNTHETIC LIVE/
+Sleep 500ms
 Show
-
-Sleep 800ms
+Sleep 10s
 Left
-Sleep 900ms
-Left
-Sleep 1200ms
+Sleep 1s
 Right
-Sleep 700ms
+Sleep 1s
+Type " "
+Sleep 800ms
+Type "."
+Sleep 800ms
+Type "ff"
+Sleep 800ms
+Type "f"
+Sleep 800ms
+Type "f"
+Sleep 800ms
 Type "q"
-Sleep 300ms
+Sleep 200ms

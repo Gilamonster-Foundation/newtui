@@ -44,7 +44,7 @@ if recording fails. The tapes wait for the live catalog before taking a frame.
 The catalog recordings show ordinary chart data, the one-line meter family,
 a narrow viewport, an unavailable backend and a light palette. Still PNGs live in
 `docs/widgets/generated/`; `catalog/catalog.gif` and `catalog/catalog.png`
-are the animated walkthrough. Those overview captures supplement the ten
+are the animated walkthrough. Those overview captures supplement the eleven
 per-piece behavior demos below. They never substitute for exercising apply,
 cancel, overflow and empty input.
 
@@ -60,15 +60,30 @@ and the test are describing the same component:
 | Demo | Shows |
 |---|---|
 | `settings` | ↑↓ through rows, ←→ dialling a value, an unreachable backend explaining itself, a door that does not dial, Esc leaving without applying |
-| `sparkline` | a series at several widths, including narrower than its label |
-| `butterfly` | two directions against a stable midline, at the width where the midline is all that fits |
-| `heat_meter` | the positional heat ramp retaining a signal while its labels are clipped at narrow widths |
-| `gauge` | the wide caption switching to an honest bar when the caption no longer fits |
-| `bar` | a host-formatted value and units yielding space to the bar as width contracts |
-| `core_grid` | two histories retaining their row order while missing core rows stay visibly empty |
+| `sparkline` | a full history scrolling through repeated rises and falls, then a brief width change and pause/single step |
+| `butterfly` | a live compact meter above a long mirrored history, with independent TX/RX wings and matching numeric rates |
+| `butterfly_history` | newest-at-bottom history whose two sides rise and cool independently around one center; empty and invalid samples |
+| `heat_meter` | changing utilization moving along the heat ramp, then label clipping and an exact paused step |
+| `gauge` | repeated filling and draining, followed by a narrow bar and pause/single step |
+| `bar` | changing latency with current units and bar length agreeing, then a brief narrow view |
+| `core_grid` | twelve independently phased busy/cooling cores, full histories and current percentages matching each last sample |
 | `diff` | unified, split and stat layouts; folded/expanded context; row windows; narrow fallback; empty and binary changes; long Unicode source with notices outside the preview |
-| `bsp` | real widget panes in ratio geometry; selected dividers; ratio edits; exact shrink/restore; narrow and empty areas; rejected NaN edits with geometry status outside the preview |
+| `bsp` | live numeric widgets inside ratio geometry, then divider/ratio edits, exact shrink/restore, narrow/empty areas and rejected NaN edits |
 | `linked_panes` | host-owned old/new ASCII text in BSP geometry; unequal correspondence, gap fallback and boundary markers; cursor-driven page windows, focus-only Tab, three link modes, empty/rejected inputs and Esc cancellation |
+
+Numeric named demos run a deterministic synthetic stream every 250 ms; their
+tapes spend 10–14 seconds showing changing readings before briefly resizing.
+Space pauses/resumes, `.` advances one sample and stays paused, and `r` resets
+the samples to tick zero. TX and RX have different cycles. The core demo uses
+twelve different burst/cooling patterns; each displayed percentage is the
+last sample in its own history. A 256-sample window fills wide views.
+
+The catalog opts in with `--animate` or Space; ordinary launches retain their
+fixed fixtures. The [activity tape](catalog/activity.tape) records moving
+butterfly history and core data, then pauses/reset/steps to fixed screenshot
+ticks. `n` switches between data and geometry status in an animated BSP preview.
+Every clock and sample generator lives in the executable hosts; the library
+builders stay pure. A deadline controls time independently of key frequency.
 
 The diff demo and catalog share the same parsed fixtures and presentation
 state. In the catalog, launch `--item diff`; optional `--geometry`,

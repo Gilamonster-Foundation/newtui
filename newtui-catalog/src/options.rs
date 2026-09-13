@@ -5,10 +5,11 @@ use newtui::{DiffGeometry, Key};
 
 pub const HELP: &str = "newtui-catalog — Shawn's custom TUI widgets\n\n\
 Usage: newtui-catalog [--item NAME] [--scenario NAME] [--theme NAME] [--width N]\n\n\
-  --item       settings_panel, sparkline, butterfly, heat_meter, gauge, bar, core_grid, diff, bsp, linked_panes\n\
+  --item       settings_panel, sparkline, butterfly, butterfly_history, heat_meter, gauge, bar, core_grid, diff, bsp, linked_panes\n\
   --scenario   normal, narrow, empty, error, long\n\
   --theme      dark, light\n\
   --width      Preview content columns, 1..200 (narrow starts at 8)\n\
+  --animate    Advance synthetic numeric samples every 250 ms\n\
   --geometry   Diff layout: unified, split, stat\n\
   --row-offset / --column-offset   Diff source window, starting at 0\n\
   --expanded   Expand all diff context runs\n\
@@ -21,7 +22,8 @@ Interact: F1 returns to catalog; Esc goes to the component. F2 fixture, F3 theme
 Diff: g layout, e context, n notice, up/down rows, Shift-left/right columns, Home reset scroll.\n\
 BSP: Tab divider, up/down ratio, s shrink/restore, x reject NaN, Home reset geometry.\n\
 Linked panes: up/down/Page/Home/End cursor, Tab/BackTab focus, l mode, Esc cancel.\n\
-Ctrl-C exits from any mode. All examples use fixed local sample data.\n";
+Numeric pieces: Space live/pause, . single step, r reset. Animated BSP: n data/geometry.\n\
+Ctrl-C exits from any mode. All examples use deterministic local data.\n";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Theme {
@@ -51,6 +53,7 @@ pub struct Options {
     pub scenario: Scenario,
     pub theme: Theme,
     pub width: u16,
+    pub animate: bool,
     pub diff: DiffPreview,
     pub bsp: BspPreview,
     pub list: bool,
@@ -64,6 +67,7 @@ impl Default for Options {
             scenario: Scenario::Normal,
             theme: Theme::Dark,
             width: 48,
+            animate: false,
             diff: DiffPreview::default(),
             bsp: BspPreview::default(),
             list: false,
@@ -79,6 +83,10 @@ impl Options {
         let mut explicit_width = false;
         let mut shrunk = false;
         while let Some(flag) = args.next() {
+            if flag == "--animate" {
+                options.animate = true;
+                continue;
+            }
             if flag == "--help" || flag == "-h" {
                 options.help = true;
                 continue;

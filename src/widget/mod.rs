@@ -2,6 +2,7 @@
 
 mod bar;
 mod butterfly;
+mod butterfly_history;
 mod core_grid;
 mod diff;
 mod gauge;
@@ -12,6 +13,7 @@ mod sparkline;
 
 pub use bar::bar;
 pub use butterfly::butterfly;
+pub use butterfly_history::butterfly_history;
 pub use core_grid::core_grid;
 pub use core_grid::CoreSeries;
 pub use diff::diff;

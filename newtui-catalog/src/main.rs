@@ -1,10 +1,11 @@
 use newtui_catalog::{
-    fixtures::ENTRIES,
+    fixtures::{TickClock, ENTRIES},
     options::{Options, HELP},
     Catalog,
 };
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
 use std::io;
+use std::time::Instant;
 
 fn main() -> io::Result<()> {
     let options = match Options::parse(std::env::args().skip(1)) {
@@ -26,13 +27,25 @@ fn main() -> io::Result<()> {
     }
     let mut catalog = Catalog::new(options);
     let mut terminal = ratatui::init();
+    let mut clock = TickClock::new(Instant::now());
+    let mut dirty = true;
     let result = (|| loop {
-        terminal.draw(|frame| catalog.render(frame))?;
-        match event::read()? {
-            Event::Key(key) if key.kind == KeyEventKind::Press && catalog.handle(key) => {
-                return Ok(())
+        dirty |= catalog.advance(clock.take_due(Instant::now()));
+        if dirty {
+            terminal.draw(|frame| catalog.render(frame))?;
+            dirty = false;
+        }
+        if event::poll(clock.timeout(Instant::now()))? {
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
+                    if catalog.handle(key) {
+                        return Ok(());
+                    }
+                    dirty = true;
+                }
+                Event::Resize(_, _) => dirty = true,
+                _ => {}
             }
-            _ => {}
         }
     })();
     ratatui::restore();

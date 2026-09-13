@@ -4,8 +4,8 @@ This is the inventory of what the crate ships. Each entry names the host data
 it needs, its input domain, its degenerate edge, and the observable properties
 that a reimplementation must satisfy.
 
-The [widget catalog](WIDGETS.md) is the front door — the available / donated /
-planned split with donor links. This catalogue goes deeper: the acceptance
+The [widget catalog](WIDGETS.md) is the front door — available library pieces,
+included sources, and planned work. This catalogue goes deeper: the acceptance
 properties and runnable examples for each shipped piece. How the families
 are tested is the [testing model](testing-model.md).
 
@@ -230,6 +230,38 @@ both labels and the shared maximum.
 let net = newtui::butterfly(20.0, 60.0, 100.0, "TX", "RX", 16, 1);
 assert!(net.validate(16, 1).is_ok());
 ```
+
+<!-- widget: butterfly_history -->
+## `butterfly_history`
+
+<!-- demo: butterfly_history = butterfly_history -->
+Demo: [tape](../demos/butterfly_history.tape) · [GIF](../demos/butterfly_history.gif) · [animated PNG](../demos/butterfly_history.png)
+
+A long pair of independent history bars, mirrored around one stable center.
+The host supplies oldest-first samples and one shared maximum. Newest samples
+align at the bottom; an absent sample leaves its own side empty. The
+[history contract](butterfly-history.md) defines alignment, clipping and
+invalid-data behavior. It requires no feature flag or runtime dependency.
+
+```rust
+let wings = newtui::butterfly_history(&[20.0, 80.0], &[70.0, 10.0], 100.0, 41, 8);
+assert!(wings.validate(41, 8).is_ok());
+```
+
+Launch `just catalog --item butterfly_history --width 88 --animate`. The
+catalog and named demo feed the pure builder a deterministic synthetic stream
+every 250 ms. TX and RX have independent cycles and numeric readouts; original
+samples and the clock remain host data. Space pauses/resumes, `.` advances one
+sample and stays paused, and `r` resets to tick zero. The compact `butterfly`
+builder remains one row; its named demo composes that live meter above this
+history so both can be compared at the same tick.
+
+The same live mode drives sparkline, heat meter, gauge, bar, core grid and the
+BSP host's numeric panes. Core grid uses twelve independently phased burst and
+cooling histories, with each current value equal to its final sample. The
+256-sample host window fills every supported catalog width. Normal catalog
+launches remain still until `--animate`, Space, or a single step selects live
+data; empty and invalid-data fixtures do not invent fresh samples.
 
 <!-- widget: heat_meter -->
 ## `heat_meter`

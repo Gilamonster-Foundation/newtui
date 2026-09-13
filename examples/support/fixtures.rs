@@ -6,6 +6,12 @@ pub use bsp::BspPreview;
 #[path = "linked.rs"]
 mod linked;
 pub use linked::LinkedPreview;
+#[path = "stream.rs"]
+mod stream;
+// The named demos and catalog drive the clock; tests include this file too
+// but only read samples, so the re-export is unused in that build.
+#[allow(unused_imports)]
+pub use stream::{DemoStream, TickClock};
 
 use newtui::components::settings_panel::{Backend, Choice, Model, Setting, SettingsSeed};
 use newtui::diff::{from_unified, ChangeSet, DiffLine};
@@ -29,6 +35,7 @@ pub enum Kind {
     Settings,
     Sparkline,
     Butterfly,
+    ButterflyHistory,
     HeatMeter,
     Gauge,
     Bar,
@@ -60,6 +67,14 @@ pub const ENTRIES: &[Entry] = &[
         description: "Two directions. One scale. A steady center.",
         data: "Two rates, their labels and a shared maximum.",
         kind: Kind::Butterfly,
+    },
+    Entry {
+        id: "butterfly_history",
+        name: "Butterfly history",
+        description: "Independent TX and RX wings. A long history around one center.",
+        data:
+            "Oldest-first TX/RX samples and a shared maximum. The host owns labels, rates and time.",
+        kind: Kind::ButterflyHistory,
     },
     Entry {
         id: "heat_meter",
@@ -226,6 +241,7 @@ impl Kind {
             Self::Settings => "settings",
             Self::Sparkline | Self::Bar => "request latency",
             Self::Butterfly => "network tx | rx",
+            Self::ButterflyHistory => "TX / RX history",
             Self::HeatMeter => "disk temperature",
             Self::Gauge => "daily budget",
             Self::CoreGrid => "cpu cores",
@@ -237,8 +253,12 @@ impl Kind {
 
     pub fn demo_widths(self) -> &'static [usize] {
         match self {
-            Self::Diff | Self::Bsp | Self::LinkedPanes => &[88, 44, 12, 1],
-            Self::Butterfly => &[24, 8, 1],
+            Self::Diff
+            | Self::Bsp
+            | Self::LinkedPanes
+            | Self::Butterfly
+            | Self::ButterflyHistory => &[88, 44, 12, 1],
+            Self::Sparkline | Self::CoreGrid => &[72, 36, 12, 1],
             Self::HeatMeter | Self::Bar => &[24, 10, 4],
             Self::Gauge => &[24, 12, 4],
             _ => &[24, 12, 6],
@@ -278,6 +298,15 @@ impl Kind {
         };
         Some(match self {
             Self::Settings => return None,
+            Self::ButterflyHistory => {
+                let history = DemoStream::default().histories();
+                let (tx, rx): (&[f64], &[f64]) = match scenario {
+                    Scenario::Empty => (&[], &[]),
+                    Scenario::Error => (&[f64::NAN, f64::INFINITY], &[f64::NEG_INFINITY, f64::NAN]),
+                    _ => (&history[0], &history[1]),
+                };
+                newtui::butterfly_history(tx, rx, maximum, width, 20)
+            }
             Self::Diff => DiffPreview::default().output(scenario, width, 16),
             Self::Bsp => BspPreview::default().output(scenario, width, 16),
             Self::LinkedPanes => {
@@ -409,6 +438,125 @@ impl Kind {
                 )
             }
         })
+    }
+}
+
+impl Kind {
+    pub fn supports_stream(self) -> bool {
+        matches!(
+            self,
+            Self::Sparkline
+                | Self::Butterfly
+                | Self::ButterflyHistory
+                | Self::HeatMeter
+                | Self::Gauge
+                | Self::Bar
+                | Self::CoreGrid
+                | Self::Bsp
+        )
+    }
+
+    /// Pure projection of a host tick; neither rendering nor keys advance it.
+    pub fn stream_output(
+        self,
+        scenario: Scenario,
+        stream: &DemoStream,
+        width: usize,
+        height: usize,
+    ) -> WidgetOutput {
+        let history = stream.histories();
+        let (mut tx, mut rx) = stream.rates();
+        let empty = scenario == Scenario::Empty;
+        let invalid = scenario == Scenario::Error;
+        if empty {
+            tx = 0.0;
+            rx = 0.0;
+        }
+        if invalid {
+            tx = f64::NAN;
+            rx = f64::INFINITY;
+        }
+        let tx_history: &[f64] = if empty {
+            &[]
+        } else if invalid {
+            &[f64::NAN]
+        } else {
+            &history[0]
+        };
+        let rx_history: &[f64] = if empty {
+            &[]
+        } else if invalid {
+            &[f64::INFINITY]
+        } else {
+            &history[1]
+        };
+        match self {
+            Self::Sparkline => sparkline(tx_history, 100.0, width, height, SparkDirection::Up),
+            Self::Butterfly => butterfly(tx, rx, 100.0, "TX", "RX", width, height),
+            Self::ButterflyHistory => {
+                newtui::butterfly_history(tx_history, rx_history, 100.0, width, height)
+            }
+            Self::HeatMeter => heat_meter("utilization", tx, &format!("{tx:.0}%"), width, height),
+            Self::Gauge => gauge("quota", tx / 10.0, 10.0, width, height),
+            Self::Bar => bar("latency", tx, 100.0, &format!("{tx:.0} ms"), width, height),
+            Self::CoreGrid => {
+                let histories = stream.core_histories();
+                let labels: Vec<_> = (0..histories.len())
+                    .map(|core| format!("{core:02}"))
+                    .collect();
+                let cores: Vec<_> = histories
+                    .iter()
+                    .zip(&labels)
+                    .map(|(history, label)| CoreSeries {
+                        label,
+                        current: if invalid {
+                            f64::NAN
+                        } else {
+                            *history.last().unwrap()
+                        },
+                        history: if invalid { &[f64::NAN] } else { history },
+                        maximum: 100.0,
+                    })
+                    .collect();
+                core_grid(if empty { &[] } else { &cores }, width, height)
+            }
+            _ => self
+                .output(scenario, width)
+                .expect("only display pieces have stream output"),
+        }
+    }
+
+    pub fn stream_caption(self, scenario: Scenario, stream: &DemoStream, animated: bool) -> String {
+        if matches!(scenario, Scenario::Empty | Scenario::Error) {
+            return format!("SYNTHETIC {} fixture / no live samples", scenario.name());
+        }
+        let (tx, rx) = stream.rates();
+        let reading = match self {
+            Self::Butterfly | Self::ButterflyHistory => format!("TX {tx:.0} / RX {rx:.0} MiB/s"),
+            Self::Sparkline | Self::Bar => format!("current {tx:.0} ms"),
+            Self::Gauge => format!("used {:.1} / 10", tx / 10.0),
+            Self::CoreGrid => format!(
+                "12 cores / peak {:.0}%",
+                stream
+                    .core_histories()
+                    .iter()
+                    .map(|history| *history.last().unwrap())
+                    .fold(0.0_f64, f64::max)
+            ),
+            Self::Bsp => format!("pane samples {tx:.0}% / {rx:.0}%"),
+            _ => format!("current {tx:.0}%"),
+        };
+        format!(
+            "SYNTHETIC {} / tick {}\n{reading}\n250 ms ticks / Space pause / . step",
+            if !animated {
+                "STILL"
+            } else if stream.paused() {
+                "PAUSED"
+            } else {
+                "LIVE"
+            },
+            stream.tick()
+        )
     }
 }
 

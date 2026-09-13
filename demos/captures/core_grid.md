@@ -2,7 +2,7 @@
 
 Generated from the real terminal host using the checked-in tapes below.
 
-Source revision: ce793a7239d83417adcd5c2e4bcdf8286aa3e66c
+Source revision: ad61c319cf64cee2ad8bf00033b0621e52df9fe2
 Recorder: vhs version v0.11.0 (c6af91a)
 Working tree: includes the reviewed changes accompanying these captures.
 
@@ -12,27 +12,35 @@ Working tree: includes the reviewed changes accompanying these captures.
 Output demos/core_grid.gif
 
 Set Shell "bash"
-Set Width 620
-Set Height 320
-Set FontSize 18
+Set Width 1320
+Set Height 640
+Set FontSize 16
 Set FontFamily "Menlo"
 Set Theme "Catppuccin Mocha"
 Set CursorBlink false
+Set Padding 16
 
 Hide
 Type `"${NEWTUI_DEMO_BIN:-./target/debug/examples/demo}" core_grid`
 Enter
-Wait+Screen /requested width:/
-Sleep 1s
+Wait+Screen /SYNTHETIC LIVE/
+Sleep 500ms
 Show
-
-Sleep 800ms
+Sleep 14s
 Left
-Sleep 900ms
-Left
-Sleep 1200ms
+Sleep 1s
 Right
-Sleep 700ms
+Sleep 1s
+Type " "
+Sleep 800ms
+Type "."
+Sleep 800ms
+Type "ff"
+Sleep 800ms
+Type "f"
+Sleep 800ms
+Type "f"
+Sleep 800ms
 Type "q"
-Sleep 300ms
+Sleep 200ms
 ```
