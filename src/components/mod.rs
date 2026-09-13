@@ -4,4 +4,5 @@
 //! drives the keys, draws the resulting view, and carries out the returned
 //! intent. The component owns none of those effects.
 
+pub mod linked_panes;
 pub mod settings_panel;

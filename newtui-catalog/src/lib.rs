@@ -6,7 +6,8 @@ pub mod options;
 mod palette;
 
 use fixtures::{
-    notice_text, settings_seed, BspPreview, DiffPreview, Entry, Kind, Scenario, ENTRIES,
+    notice_text, settings_seed, BspPreview, DiffPreview, Entry, Kind, LinkedPreview, Scenario,
+    ENTRIES,
 };
 use newtui::{
     components::settings_panel::SettingsPanel, ratatui_lines, Component, Flow, Key, WidgetOutput,
@@ -33,6 +34,7 @@ pub struct Catalog {
     outcome: Option<String>,
     diff: DiffPreview,
     bsp: BspPreview,
+    linked: LinkedPreview,
     notice_index: usize,
 }
 
@@ -59,6 +61,7 @@ impl Catalog {
             outcome: None,
             diff: options.diff,
             bsp: options.bsp,
+            linked: LinkedPreview::new(options.scenario),
             notice_index: 0,
         }
     }
@@ -88,6 +91,7 @@ impl Catalog {
         self.outcome = None;
         self.diff = DiffPreview::default();
         self.bsp = BspPreview::default();
+        self.linked = LinkedPreview::new(self.scenario);
         self.notice_index = 0;
     }
 
@@ -245,6 +249,24 @@ impl Catalog {
                         }
                     }
                 }
+            } else if self
+                .selected_entry()
+                .is_some_and(|entry| entry.kind == Kind::LinkedPanes)
+            {
+                if event.modifiers.contains(KeyModifiers::ALT) {
+                    return false;
+                }
+                match event.code {
+                    KeyCode::Left if event.modifiers.is_empty() => self.resize(false),
+                    KeyCode::Right if event.modifiers.is_empty() => self.resize(true),
+                    _ => {
+                        if let Some(key) = map_key(event) {
+                            if self.linked.handle(key) == Flow::Close(false) {
+                                self.focused = false;
+                            }
+                        }
+                    }
+                }
             } else {
                 match event.code {
                     KeyCode::Left => self.resize(false),
@@ -286,7 +308,14 @@ impl Catalog {
     }
 
     /// Draw the same host that is used for live browsing and recorded screenshots.
-    pub fn render(&self, frame: &mut Frame<'_>) {
+    pub fn render(&mut self, frame: &mut Frame<'_>) {
+        if self
+            .selected_entry()
+            .is_some_and(|entry| entry.kind == Kind::LinkedPanes)
+        {
+            let area = self.preview_content_rect(frame.area()).unwrap_or_default();
+            self.linked.resize(area.width, area.height);
+        }
         let palette = Palette::for_theme(self.theme);
         frame.render_widget(
             Block::default().style(Style::default().bg(palette.background).fg(palette.text)),
@@ -342,6 +371,12 @@ impl Catalog {
                 .is_some_and(|entry| entry.kind == Kind::Bsp)
         {
             "BSP Tab divider · ↑↓ ratio · ←→ size\ns shrink/restore · x reject NaN · F1 catalog\nF2 fixture · F3 theme · F4 reset · Ctrl-C quit"
+        } else if self.focused
+            && self
+                .selected_entry()
+                .is_some_and(|entry| entry.kind == Kind::LinkedPanes)
+        {
+            "LINKED ↑↓/Pg/Home/End cursor · Tab focus\nl link mode · ←→ size · Esc cancel · F1 catalog\nF2 fixture · F3 theme · F4 reset · Ctrl-C quit"
         } else if self.focused {
             "INTERACT   F1 catalog · F2 fixture · F3 theme · F4 reset · Ctrl-C quit"
         } else if frame.area().width < 80 {
@@ -410,7 +445,7 @@ impl Catalog {
                     Line::from(entry.name),
                     Line::styled(
                         match entry.kind {
-                            Kind::Settings => "  INTERACTIVE",
+                            Kind::Settings | Kind::LinkedPanes => "  INTERACTIVE",
                             Kind::Bsp => "  LAYOUT PRIMITIVE",
                             _ => "  DISPLAY WIDGET",
                         },
@@ -466,6 +501,8 @@ impl Catalog {
                             format!("{} / {}  ", entry.id, self.diff.geometry_name())
                         } else if entry.kind == Kind::Bsp {
                             format!("{} / {}  ", entry.id, self.bsp.size_name())
+                        } else if entry.kind == Kind::LinkedPanes {
+                            format!("{} / {}  ", entry.id, self.linked.mode_name())
                         } else {
                             format!("{}  ", entry.id)
                         },
@@ -493,7 +530,9 @@ impl Catalog {
             self.render_settings(frame, inside, palette);
         } else if let Some(content) = self.preview_content_rect(frame.area()) {
             let output = self.widget_output(entry, content);
-            notice = if entry.kind == Kind::Bsp {
+            notice = if entry.kind == Kind::LinkedPanes {
+                Some(self.linked.status())
+            } else if entry.kind == Kind::Bsp {
                 Some(
                     self.bsp
                         .status(self.scenario, content.width, content.height),
@@ -674,6 +713,9 @@ impl Catalog {
                 usize::from(content.width),
                 usize::from(content.height),
             )
+        } else if entry.kind == Kind::LinkedPanes {
+            self.linked
+                .output(usize::from(content.width), usize::from(content.height))
         } else if entry.kind == Kind::Bsp {
             self.bsp.output(
                 self.scenario,
@@ -786,11 +828,197 @@ mod tests {
     use super::*;
     use ratatui::{backend::TestBackend, buffer::Buffer, Terminal};
 
+    // GUARD: tests::linked_host_uses_component_rows_and_never_marks_an_anchor_as_source
+    #[test]
+    fn linked_host_uses_component_rows_and_never_marks_an_anchor_as_source() {
+        use newtui::components::linked_panes::{MappedLocation, PaneSide};
+        let mut catalog = Catalog::new(Options {
+            item: Kind::LinkedPanes,
+            width: 88,
+            ..Options::default()
+        });
+        let source = catalog.linked.source(PaneSide::First).to_vec();
+        render(&mut catalog, 140, 40);
+        press(&mut catalog, KeyCode::Enter);
+        for _ in 0..2 {
+            press(&mut catalog, KeyCode::Down);
+        }
+        let buffer = render(&mut catalog, 140, 40);
+        let component = catalog.linked.component().unwrap();
+        assert_eq!(component.position(PaneSide::First).cursor, Some(2));
+        assert_eq!(component.position(PaneSide::Second).cursor, Some(4));
+        let area = catalog.preview_content_rect(buffer.area).unwrap();
+        let new = catalog.linked.panes(area.width, area.height)[1].1;
+        let row_text = |buffer: &Buffer, row: u16| -> String {
+            (0..new.width)
+                .map(|x| buffer[(area.x + new.x + x, area.y + new.y + 1 + row)].symbol())
+                .collect()
+        };
+        assert!(row_text(&buffer, 4).starts_with(".= 5     draw_changes"));
+        for _ in 0..4 {
+            press(&mut catalog, KeyCode::Down);
+        }
+        let mut buffer = render(&mut catalog, 140, 40);
+        let component = catalog.linked.component().unwrap();
+        assert_eq!(
+            component.relation().unwrap().mapping.target,
+            MappedLocation::Boundary(8)
+        );
+        assert!(catalog.linked.status().contains("anchor 9"));
+        // The target cursor is stored for navigation, but no row is the anchor.
+        assert!(row_text(&buffer, 8).starts_with(".  9"));
+        assert!((0..new.height - 1).all(|row| row_text(&buffer, row).chars().nth(1) != Some('=')));
+        assert!(preview_matches(&catalog, &buffer));
+        for y in area.y..area.bottom() {
+            for x in area.x..area.right() {
+                buffer[(x, y)].set_symbol(" ");
+            }
+        }
+        assert!(
+            !preview_matches(&catalog, &buffer),
+            "catalog chrome cannot establish rendered source"
+        );
+        assert_eq!(catalog.linked.source(PaneSide::First), source);
+        assert!(!format!("{:?}", component.view()).contains("draw_plain"));
+    }
+
+    #[test]
+    fn linked_host_uses_actual_bsp_heights_and_preserves_modes_and_cancel() {
+        use newtui::components::linked_panes::{LinkMode, PaneSide};
+        let mut catalog = Catalog::new(Options {
+            item: Kind::LinkedPanes,
+            scenario: Scenario::Long,
+            width: 88,
+            ..Options::default()
+        });
+        let first = render(&mut catalog, 120, 28);
+        let area = catalog.preview_content_rect(first.area).unwrap();
+        let page = usize::from(area.height.saturating_sub(u16::from(area.height > 1)));
+        assert_eq!(
+            catalog
+                .linked
+                .component()
+                .unwrap()
+                .position(PaneSide::First)
+                .height,
+            page
+        );
+        press(&mut catalog, KeyCode::Enter);
+        press(&mut catalog, KeyCode::PageDown);
+        assert_eq!(
+            catalog
+                .linked
+                .component()
+                .unwrap()
+                .position(PaneSide::First)
+                .cursor,
+            Some(page.max(1))
+        );
+        render(&mut catalog, 140, 40);
+        let before = catalog.linked.component().unwrap().clone();
+        press(&mut catalog, KeyCode::Tab);
+        let component = catalog.linked.component().unwrap();
+        assert_eq!(component.focus(), PaneSide::Second);
+        assert_eq!(component.relation(), before.relation());
+        assert_eq!(
+            component.position(PaneSide::First),
+            before.position(PaneSide::First)
+        );
+        press(&mut catalog, KeyCode::Char('l'));
+        assert_eq!(
+            catalog.linked.component().unwrap().mode(),
+            LinkMode::Proportional
+        );
+        press(&mut catalog, KeyCode::Char('l'));
+        let old = catalog
+            .linked
+            .component()
+            .unwrap()
+            .position(PaneSide::First);
+        press(&mut catalog, KeyCode::Down);
+        assert_eq!(
+            catalog.linked.component().unwrap().mode(),
+            LinkMode::Unlinked
+        );
+        assert_eq!(
+            catalog
+                .linked
+                .component()
+                .unwrap()
+                .position(PaneSide::First),
+            old
+        );
+        let before = catalog.linked.component().unwrap().view();
+        press(&mut catalog, KeyCode::Enter);
+        press(&mut catalog, KeyCode::Char('x'));
+        catalog.handle(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::ALT));
+        catalog.handle(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::CONTROL));
+        assert_eq!(catalog.linked.component().unwrap().view(), before);
+        assert!(!press(&mut catalog, KeyCode::Esc));
+        assert!(!catalog.focused);
+        assert!(text(&render(&mut catalog, 120, 36)).contains("Esc cancelled"));
+        press(&mut catalog, KeyCode::Char('r'));
+        assert_eq!(catalog.linked.component().unwrap().mode(), LinkMode::Locked);
+    }
+
+    #[test]
+    fn linked_fixtures_keep_diagnostics_and_source_outside_tiny_previews() {
+        use newtui::components::linked_panes::PaneSide;
+        for scenario in Scenario::ALL {
+            let mut fixture = LinkedPreview::new(scenario);
+            for width in [0, 1, 8, 88, 200, usize::from(u16::MAX)] {
+                for height in [0, 1, 4] {
+                    fixture.resize(u16::try_from(width).unwrap(), height);
+                    assert!(fixture
+                        .output(width, usize::from(height))
+                        .validate(width, usize::from(height))
+                        .is_ok());
+                    assert!(!fixture.status().is_empty());
+                }
+            }
+            if scenario == Scenario::Empty {
+                assert_eq!(
+                    fixture
+                        .component()
+                        .unwrap()
+                        .position(PaneSide::First)
+                        .cursor,
+                    None
+                );
+            } else if scenario == Scenario::Error {
+                assert!(fixture.error().is_some());
+                assert!(fixture.component().is_none());
+                assert!(!fixture.source(PaneSide::First).is_empty());
+            }
+            for theme in [Theme::Dark, Theme::Light] {
+                let mut catalog = Catalog::new(Options {
+                    item: Kind::LinkedPanes,
+                    scenario,
+                    theme,
+                    width: 1,
+                    ..Options::default()
+                });
+                let buffer = render(&mut catalog, 54, 28);
+                let area = Regions::new(buffer.area).note;
+                let note: String = (area.y..area.bottom())
+                    .flat_map(|y| (area.x..area.right()).map(move |x| (x, y)))
+                    .map(|point| buffer[point].symbol())
+                    .collect();
+                for line in catalog.linked.status().lines() {
+                    assert!(
+                        note.contains(line),
+                        "{scenario:?}: missing {line:?} in {note:?}"
+                    );
+                }
+            }
+        }
+    }
+
     fn press(catalog: &mut Catalog, code: KeyCode) -> bool {
         catalog.handle(KeyEvent::new(code, KeyModifiers::NONE))
     }
 
-    fn render(catalog: &Catalog, width: u16, height: u16) -> Buffer {
+    fn render(catalog: &mut Catalog, width: u16, height: u16) -> Buffer {
         let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
         terminal.draw(|frame| catalog.render(frame)).unwrap();
         terminal.backend().buffer().clone()
@@ -892,14 +1120,14 @@ mod tests {
                 for (columns, width, height) in
                     [(1, 54, 28), (8, 80, 28), (48, 120, 36), (200, 140, 40)]
                 {
-                    let catalog = Catalog::new(Options {
+                    let mut catalog = Catalog::new(Options {
                         item: Kind::Bsp,
                         scenario,
                         theme,
                         width: columns,
                         ..Options::default()
                     });
-                    let mut buffer = render(&catalog, width, height);
+                    let mut buffer = render(&mut catalog, width, height);
                     assert!(
                         bsp_panes_match(&catalog, &buffer),
                         "{scenario:?} {theme:?} {columns}"
@@ -963,7 +1191,7 @@ mod tests {
         press(&mut catalog, KeyCode::Char('x'));
         assert_eq!(catalog.bsp.panes(Scenario::Normal, 88, 16), edited);
         assert!(catalog.bsp.changed(Scenario::Normal, 88, 16).is_empty());
-        assert!(text(&render(&catalog, 140, 40)).contains("NaN rejected; unchanged"));
+        assert!(text(&render(&mut catalog, 140, 40)).contains("NaN rejected; unchanged"));
         for modifiers in [KeyModifiers::CONTROL, KeyModifiers::ALT] {
             let previous = catalog.bsp.clone();
             for code in [
@@ -982,7 +1210,8 @@ mod tests {
         press(&mut catalog, KeyCode::BackTab);
         press(&mut catalog, KeyCode::Down);
         assert_eq!(catalog.bsp.changed(Scenario::Normal, 88, 16), vec![10, 30]);
-        assert!(bsp_panes_match(&catalog, &render(&catalog, 140, 40)));
+        let buffer = render(&mut catalog, 140, 40);
+        assert!(bsp_panes_match(&catalog, &buffer));
         press(&mut catalog, KeyCode::F(4));
         assert_eq!(catalog.bsp, BspPreview::default());
         press(&mut catalog, KeyCode::Esc);
@@ -1020,14 +1249,14 @@ mod tests {
                     for (width, height, requested) in
                         [(120, 36, 48), (80, 28, 8), (54, 28, 1), (120, 36, 200)]
                     {
-                        let catalog = Catalog::new(Options {
+                        let mut catalog = Catalog::new(Options {
                             item: entry.kind,
                             scenario,
                             theme,
                             width: requested,
                             ..Options::default()
                         });
-                        let buffer = render(&catalog, width, height);
+                        let buffer = render(&mut catalog, width, height);
                         assert!(preview_matches(&catalog, &buffer), "{} {scenario:?} {theme:?} {width}x{height}/{requested} loses widget cells", entry.id);
                         if catalog.preview_content_rect(buffer.area).unwrap().width < requested {
                             assert!(
@@ -1043,11 +1272,11 @@ mod tests {
 
     #[test]
     fn preview_guard_rejects_blank_content_even_when_catalog_chrome_survives() {
-        let catalog = Catalog::new(Options {
+        let mut catalog = Catalog::new(Options {
             item: Kind::HeatMeter,
             ..Options::default()
         });
-        let mut buffer = render(&catalog, 120, 36);
+        let mut buffer = render(&mut catalog, 120, 36);
         assert!(preview_matches(&catalog, &buffer));
         let area = catalog.preview_content_rect(buffer.area).unwrap();
         for y in area.y..area.bottom() {
@@ -1085,7 +1314,7 @@ mod tests {
                             },
                             ..Options::default()
                         });
-                        let mut buffer = render(&catalog, terminal_width, terminal_height);
+                        let mut buffer = render(&mut catalog, terminal_width, terminal_height);
                         assert!(preview_matches(&catalog, &buffer));
                         let area = catalog.preview_content_rect(buffer.area).unwrap();
                         let output = catalog.widget_output(catalog.selected_entry().unwrap(), area);
@@ -1100,7 +1329,7 @@ mod tests {
                         }
                         for (index, notice) in output.notices.iter().enumerate() {
                             catalog.notice_index = index;
-                            buffer = render(&catalog, terminal_width, terminal_height);
+                            buffer = render(&mut catalog, terminal_width, terminal_height);
                             let note_area = Regions::new(buffer.area).note;
                             let note_text = |buffer: &Buffer| {
                                 let cells = (note_area.y..note_area.bottom())
@@ -1177,7 +1406,8 @@ mod tests {
         assert_eq!(catalog.notice_index, 1);
         catalog.handle(KeyEvent::new(KeyCode::Char('g'), KeyModifiers::CONTROL));
         assert_eq!(catalog.diff.geometry, DiffGeometry::Unified);
-        assert!(preview_matches(&catalog, &render(&catalog, 140, 36)));
+        let buffer = render(&mut catalog, 140, 36);
+        assert!(preview_matches(&catalog, &buffer));
         press(&mut catalog, KeyCode::F(4));
         assert_eq!(catalog.diff, DiffPreview::default());
         assert_eq!(catalog.notice_index, 0);
@@ -1192,13 +1422,13 @@ mod tests {
     #[test]
     fn diff_additions_and_removals_use_distinct_real_cell_styles_in_both_themes() {
         for theme in [Theme::Dark, Theme::Light] {
-            let catalog = Catalog::new(Options {
+            let mut catalog = Catalog::new(Options {
                 item: Kind::Diff,
                 theme,
                 width: 88,
                 ..Options::default()
             });
-            let buffer = render(&catalog, 140, 36);
+            let buffer = render(&mut catalog, 140, 36);
             let area = catalog.preview_content_rect(buffer.area).unwrap();
             let output = catalog.widget_output(catalog.selected_entry().unwrap(), area);
             let palette = Palette::for_theme(theme);
@@ -1232,17 +1462,17 @@ mod tests {
 
     #[test]
     fn themes_change_real_widget_styles_without_changing_content() {
-        let dark = Catalog::new(Options {
+        let mut dark = Catalog::new(Options {
             item: Kind::HeatMeter,
             ..Options::default()
         });
-        let light = Catalog::new(Options {
+        let mut light = Catalog::new(Options {
             item: Kind::HeatMeter,
             theme: Theme::Light,
             ..Options::default()
         });
-        let dark_buffer = render(&dark, 120, 36);
-        let light_buffer = render(&light, 120, 36);
+        let dark_buffer = render(&mut dark, 120, 36);
+        let light_buffer = render(&mut light, 120, 36);
         let area = dark.preview_content_rect(dark_buffer.area).unwrap();
         assert!(preview_matches(&dark, &dark_buffer) && preview_matches(&light, &light_buffer));
         assert_ne!(
@@ -1287,14 +1517,14 @@ mod tests {
         press(&mut catalog, KeyCode::Enter);
         assert!(catalog.panel.intent().is_some());
         assert!(catalog.outcome.as_deref().unwrap().contains("Accepted"));
-        assert!(text(&render(&catalog, 120, 36)).contains("Accepted"));
+        assert!(text(&render(&mut catalog, 120, 36)).contains("Accepted"));
     }
 
     #[test]
     fn filtering_is_case_insensitive_and_no_results_cannot_enter_stale_preview() {
         let mut catalog = Catalog::default();
         press(&mut catalog, KeyCode::Char('/'));
-        assert!(text(&render(&catalog, 120, 36)).contains("SEARCH"));
+        assert!(text(&render(&mut catalog, 120, 36)).contains("SEARCH"));
         for ch in "HEAT".chars() {
             press(&mut catalog, KeyCode::Char(ch));
         }
@@ -1312,7 +1542,7 @@ mod tests {
         press(&mut catalog, KeyCode::Down);
         press(&mut catalog, KeyCode::Enter);
         assert!(!catalog.focused);
-        assert!(text(&render(&catalog, 120, 36)).contains("No matching pieces"));
+        assert!(text(&render(&mut catalog, 120, 36)).contains("No matching pieces"));
         press(&mut catalog, KeyCode::Char('/'));
         press(&mut catalog, KeyCode::Backspace);
         assert!(catalog.selected_entry().is_some());
@@ -1369,23 +1599,23 @@ mod tests {
         for _ in 0..10 {
             press(&mut catalog, KeyCode::Down);
         }
-        let buffer = render(&catalog, 120, 36);
+        let buffer = render(&mut catalog, 120, 36);
         assert!(text(&buffer).contains("setting number 10"));
         assert!(text(&buffer).contains("rows 9–11 / 14"));
         for (width, height) in [(0, 0), (1, 1), (8, 4), (53, 27), (120, 19)] {
-            let buffer = render(&catalog, width, height);
+            let buffer = render(&mut catalog, width, height);
             assert!(catalog.preview_content_rect(buffer.area).is_none());
             if width == 53 {
                 assert!(text(&buffer).contains("Resize to at least"));
             }
         }
         for scenario in [Scenario::Empty, Scenario::Error, Scenario::Narrow] {
-            let catalog = Catalog::new(Options {
+            let mut catalog = Catalog::new(Options {
                 scenario,
                 width: 8,
                 ..Options::default()
             });
-            assert!(text(&render(&catalog, 54, 28)).contains("text clipped"));
+            assert!(text(&render(&mut catalog, 54, 28)).contains("text clipped"));
         }
     }
 

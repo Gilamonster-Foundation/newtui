@@ -70,6 +70,46 @@ rejected NaN edit. The host composes existing widget fixtures inside the returne
 rectangles and shows complete geometry status outside tiny previews. No Python
 layout binding is claimed by this Rust primitive.
 
+<!-- component: linked_panes -->
+## `linked_panes` — cursor-driven correspondence
+
+<!-- demo: linked_panes = linked_panes -->
+Demo: [tape](../demos/linked_panes.tape) · [GIF](../demos/linked_panes.gif) · [animated PNG](../demos/linked_panes.png)
+
+The host supplies row counts, monotone numeric regions, viewport heights, and
+source content. The component owns each cursor and window offset, focus, link
+mode and a directional correspondence result. No text enters its `View`.
+The [navigation contract](linked-panes.md) defines the numeric domain and the
+distinction between a mapped source row and an insertion/deletion boundary.
+
+```rust
+use newtui::components::linked_panes::{Correspondence, LinkedPanes, PaneSide, Region};
+use newtui::{Component, Key};
+
+let map = Correspondence::new([3, 5], vec![Region { first: 0..3, second: 0..5 }]).unwrap();
+let mut panes = LinkedPanes::new(map, [2, 2]);
+panes.handle(Key::Down);
+assert_eq!(panes.position(PaneSide::First).cursor, Some(1));
+assert_eq!(panes.position(PaneSide::Second).cursor, Some(2));
+panes.handle(Key::Tab); // Focus only: no lossy reverse remapping.
+assert_eq!(panes.position(PaneSide::First).cursor, Some(1));
+```
+
+Launch `just catalog --item linked_panes --width 88`. Enter focuses the preview;
+Up/Down, PageUp/PageDown, Home and End move the cursor. Tab/BackTab changes focus,
+`l` cycles Locked/Proportional/Unlinked, and Esc cancels without a host effect.
+F1 returns to browsing. Left/right resizes the host viewport. The named demo
+uses the same component and fixture, with `f` for fixtures and `r` for reset.
+
+The host draws real old/new ASCII lines in BSP rectangles: `>` marks the active
+cursor, `.` the other stored cursor, and `=` an actual mapped row. The status
+uses one-based rows and `@` for each window's first row. `anchor N` means the
+boundary before row N; `anchor EOF` means after the last row. Neither anchor
+is rendered as an `=` source row. Complete status remains outside tiny panes.
+Unequal regions map the selected cursor and then keep each cursor visible;
+their window tops need not correspond exactly. Independent wheel scrolling,
+diff syntax styling, hunk review and host staging effects are later surfaces.
+
 <!-- component: settings_panel -->
 ## `settings_panel`
 
