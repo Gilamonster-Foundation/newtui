@@ -46,14 +46,17 @@ fn run(terminal: &mut DefaultTerminal, demo: &mut Demo) -> io::Result<()> {
 
 enum Demo {
     Settings(SettingsDemo),
-    Widget(WidgetDemo),
+    Widget(Box<WidgetDemo>),
 }
 
 impl Demo {
     fn named(name: &str) -> Option<Self> {
         match WidgetKind::from_name(name)? {
             WidgetKind::Settings => Some(Self::Settings(SettingsDemo::new())),
-            kind => Some(Self::Widget(WidgetDemo::new(kind, kind.demo_widths()))),
+            kind => Some(Self::Widget(Box::new(WidgetDemo::new(
+                kind,
+                kind.demo_widths(),
+            )))),
         }
     }
 
@@ -634,7 +637,7 @@ fn linked_demo_forwards_navigation_and_renders_the_component_window() {
             .unwrap()
             .position(PaneSide::First)
             .cursor,
-        Some(page.max(1).min(10))
+        Some(page.clamp(1, 10))
     );
     let before = demo.linked.component().unwrap().clone();
     press(&mut demo, KeyCode::Tab);
