@@ -207,6 +207,11 @@ fn undeclared_label_glyphs_are_visibly_replaced() {
 #[cfg(feature = "ratatui")]
 #[test]
 fn ratatui_conversion_asks_the_host_for_every_style() {
+    use ratatui::backend::{Backend, CrosstermBackend};
+    use ratatui::buffer::Buffer;
+    use ratatui::layout::Rect;
+    use ratatui::style::{Color, Style};
+    use ratatui::widgets::{Paragraph, Widget};
     use std::cell::Cell;
 
     let output = WidgetOutput::new(vec![WidgetLine::new(vec![
@@ -214,10 +219,35 @@ fn ratatui_conversion_asks_the_host_for_every_style() {
         Run::new("!", Tone::Critical),
     ])]);
     let calls = Cell::new(0);
-    let lines = newtui::ratatui_lines(&output, |_| {
+    let lines = newtui::ratatui_lines(&output, |tone| {
         calls.set(calls.get() + 1);
-        ratatui::style::Style::default()
+        Style::default().fg(if tone == Tone::Healthy {
+            Color::Green
+        } else {
+            Color::Red
+        })
     });
     assert_eq!(calls.get(), 2);
     assert_eq!(lines[0].spans.len(), 2);
+
+    let area = Rect::new(0, 0, 3, 1);
+    let mut buffer = Buffer::empty(area);
+    Paragraph::new(lines).render(area, &mut buffer);
+    assert_eq!(buffer[(0, 0)].symbol(), "o");
+    assert_eq!(buffer[(1, 0)].symbol(), "k");
+    assert_eq!(buffer[(2, 0)].symbol(), "!");
+    assert_eq!(buffer[(0, 0)].fg, Color::Green);
+    assert_eq!(buffer[(2, 0)].fg, Color::Red);
+
+    // Exercise the real backend without opening a terminal or querying its size.
+    let mut bytes = Vec::new();
+    let mut backend = CrosstermBackend::new(&mut bytes);
+    backend
+        .draw((0..3).map(|column| (column, 0, &buffer[(column, 0)])))
+        .unwrap();
+    Backend::flush(&mut backend).unwrap();
+    let terminal_text = String::from_utf8(bytes).unwrap();
+    assert!(terminal_text.contains("ok"));
+    assert!(terminal_text.contains('!'));
+    assert!(terminal_text.contains("\u{1b}["));
 }
