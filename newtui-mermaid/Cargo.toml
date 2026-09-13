@@ -1,0 +1,16 @@
+[package]
+name = "newtui-mermaid"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "Apache-2.0"
+description = "Optional Mermaid reports and bounded terminal projections for newtui"
+repository = "https://github.com/Gilamonster-Foundation/newtui"
+
+[dependencies]
+newtui = { path = "..", version = "0.1.0", default-features = false }
+merman = { version = "=0.8.0-alpha.6", default-features = false, features = ["ascii"] }
+# Already in Merman's closure; used to preserve diagram cell alignment when
+# authored Unicode is projected into the core's closed glyph vocabulary.
+unicode-segmentation = "1.13.3"
+unicode-width = "0.2.2"

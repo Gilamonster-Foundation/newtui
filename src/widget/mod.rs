@@ -22,8 +22,8 @@ pub use diff::{
 pub use gauge::gauge;
 pub use heat_meter::heat_meter;
 pub use output::{
-    NoticeVisibility, Run, Tone, WidgetLine, WidgetNotice, WidgetNoticeKind, WidgetOutput,
-    WidgetOutputError,
+    declared_glyph_or_replacement, NoticeVisibility, Run, Tone, WidgetContentState, WidgetLine,
+    WidgetNotice, WidgetNoticeKind, WidgetOutput, WidgetOutputError,
 };
 pub use sparkline::sparkline;
 pub use sparkline::SparkDirection;
