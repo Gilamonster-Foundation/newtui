@@ -1,0 +1,3718 @@
+{
+  "id": "bafyr4ifzpp5ebpsr5scyoklyuwkcasqqmlscfpggqhioylqmxcaornrkau",
+  "corpus": {
+    "schema": "newtui.behavior-corpus/v1",
+    "component": "newtui.example-dial/v1",
+    "seed": {
+      "level": 0,
+      "maximum": 3
+    },
+    "domain": {
+      "alphabet": [
+        {
+          "kind": "up"
+        },
+        {
+          "kind": "down"
+        },
+        {
+          "kind": "left"
+        },
+        {
+          "kind": "right"
+        },
+        {
+          "kind": "enter"
+        },
+        {
+          "kind": "esc"
+        }
+      ],
+      "max_states": 32,
+      "max_depth": 8
+    },
+    "exploration": {
+      "states": 4,
+      "transitions": 24,
+      "terminal_states": 8,
+      "exhausted": true,
+      "verdict": "clean",
+      "incomplete_reason": null,
+      "replay_issues": []
+    },
+    "properties": [
+      {
+        "name": "selection is always in range",
+        "observations": 36,
+        "applicable": 36,
+        "held": 36,
+        "outcome": {
+          "kind": "held"
+        }
+      },
+      {
+        "name": "escape always closes without applying",
+        "observations": 36,
+        "applicable": 4,
+        "held": 4,
+        "outcome": {
+          "kind": "held"
+        }
+      },
+      {
+        "name": "only adjustable rows move",
+        "observations": 36,
+        "applicable": 8,
+        "held": 8,
+        "outcome": {
+          "kind": "held"
+        }
+      }
+    ],
+    "events": [
+      {
+        "kind": "state",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": []
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "up"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "0",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "down"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "0",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "left"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "0",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "held"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "held"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "state",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "enter"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": true
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "0",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": {
+                  "accepted": 0
+                }
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "state",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "enter"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": true
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "0",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": {
+                  "accepted": 0
+                }
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "esc"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": false
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "0",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "state",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "esc"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": false
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "0",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "up"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "down"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "left"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "0",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "held"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "held"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "state",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "enter"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": true
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": {
+                  "accepted": 1
+                }
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "state",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "enter"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": true
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": {
+                  "accepted": 1
+                }
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "esc"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": false
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "state",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "esc"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": false
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "up"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "down"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "left"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "held"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "held"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "state",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "enter"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": true
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": {
+                  "accepted": 2
+                }
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "state",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "enter"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": true
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": {
+                  "accepted": 2
+                }
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "esc"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": false
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "state",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "esc"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": false
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "up"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "down"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "left"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "held"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "held"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "enter"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": true
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": {
+                  "accepted": 3
+                }
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "state",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "enter"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": true
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": {
+                  "accepted": 3
+                }
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "transition",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "esc"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": false
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "state",
+        "trace": {
+          "initial": {
+            "view": {
+              "title": "dial",
+              "rows": [
+                {
+                  "label": "level",
+                  "value": "0",
+                  "note": "",
+                  "selected": true,
+                  "adjustable": true
+                }
+              ],
+              "footer": "arrows change"
+            },
+            "intent": null
+          },
+          "steps": [
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "1",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "2",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "right"
+              },
+              "flow": {
+                "kind": "stay"
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            },
+            {
+              "key": {
+                "kind": "esc"
+              },
+              "flow": {
+                "kind": "close",
+                "applied": false
+              },
+              "after": {
+                "view": {
+                  "title": "dial",
+                  "rows": [
+                    {
+                      "label": "level",
+                      "value": "3",
+                      "note": "",
+                      "selected": true,
+                      "adjustable": true
+                    }
+                  ],
+                  "footer": "arrows change"
+                },
+                "intent": null
+              }
+            }
+          ]
+        },
+        "checks": [
+          {
+            "property": 0,
+            "outcome": {
+              "kind": "held"
+            }
+          },
+          {
+            "property": 1,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          },
+          {
+            "property": 2,
+            "outcome": {
+              "kind": "not_applicable"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

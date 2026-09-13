@@ -82,6 +82,38 @@ const MUTATIONS: &[Mutation] = &[
         cargo_args: &["--test", "diff_sources"],
     },
     Mutation {
+        defect: "a valid content identifier is parsed but checked against the record's own identifier instead of the supplied address",
+        file: "newtui-corpus/src/artifact.rs",
+        from: ".ensure_content_id(&id)",
+        to: ".ensure_content_id(&self.corpus.content_id().unwrap())",
+        expect_red: "canonical_bytes_and_identity_are_owned_by_content_addressable",
+        cargo_args: &["-p", "newtui-corpus", "--test", "artifact"],
+    },
+    Mutation {
+        defect: "an incomplete corpus accepts transitions after the explorer's declared state cap",
+        file: "newtui-corpus/src/validate.rs",
+        from: "if open.len() as u64 >= self.domain.max_states {",
+        to: "if false && open.len() as u64 >= self.domain.max_states {",
+        expect_red: "a_capped_verdict_cannot_excuse_edges_after_the_state_limit",
+        cargo_args: &["-p", "newtui-corpus", "--test", "artifact"],
+    },
+    Mutation {
+        defect: "the recorder removes the first user's property instead of its known positional entry",
+        file: "newtui-corpus/src/capture.rs",
+        from: "report.properties.remove(recorder_index);",
+        to: "report.properties.remove(0);",
+        expect_red: "duplicate_named_properties_keep_positions_and_retirement",
+        cargo_args: &["-p", "newtui-corpus", "--test", "capture"],
+    },
+    Mutation {
+        defect: "the portable checker accepts a changed close flow because all views remain reachable",
+        file: "newtui-corpus/src/conformance.rs",
+        from: "if Flow::from(flow) != step.flow {",
+        to: "if false && Flow::from(flow) != step.flow {",
+        expect_red: "the_same_reachable_views_do_not_excuse_different_flows_or_intents",
+        cargo_args: &["-p", "newtui-corpus", "--test", "conformance"],
+    },
+    Mutation {
         defect: "the BSP host retains pane labels and dividers but drops the existing widgets inside them",
         file: "examples/support/bsp.rs",
         from: "let output = kind\n                .output(sample, usize::from(pane.width))\n                .expect(\"a pane owns a real widget\");",
@@ -719,6 +751,8 @@ fn rust_sources(root: &Path) -> Vec<PathBuf> {
         "newtui-py/tests",
         "newtui-catalog/src",
         "newtui-catalog/tests",
+        "newtui-corpus/src",
+        "newtui-corpus/tests",
         "examples/support",
     ]
     .iter()
@@ -911,6 +945,10 @@ fn copy_crate(root: &Path, dest: &Path) {
         "examples/python/README.md",
         "newtui-py/Cargo.toml",
         "newtui-catalog/Cargo.toml",
+        "newtui-corpus/Cargo.toml",
+        "newtui-corpus/README.md",
+        "newtui-corpus/fixtures/dial.json",
+        "newtui-corpus/fixtures/dial.cbor",
     ] {
         let parent = dest
             .join(file)

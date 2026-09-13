@@ -92,8 +92,9 @@ allowed to unwind across the Rust boundary.
 search, a property whose domain was never reached, replay divergence, or a
 Python callback failure. `report.properties` exposes each claim's observation,
 applicable, and held counts plus its `not_applicable`, `held`, or `violated`
-outcome. Those are in-memory evidence about the walk; the state corpus remains
-outside this binding.
+outcome. Those are in-memory evidence about the walk. The separate
+[portable corpus](../../docs/corpus.md) records complete key/view/flow/intent
+traces; its independent Python consumer does not import this binding.
 
 The binding is a separate, non-default workspace member. Build it into an
 active virtual environment with `python -m maturin develop --manifest-path
