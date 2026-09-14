@@ -4,6 +4,43 @@ use newtui::{
 };
 
 #[test]
+fn shared_glyph_projection_and_content_notices_obey_the_widget_contract() {
+    use newtui::{
+        declared_glyph_or_replacement, NoticeVisibility, WidgetContentState, WidgetNotice,
+        WidgetNoticeKind,
+    };
+    let text: String = "A 日本語\n·░▒█"
+        .chars()
+        .map(declared_glyph_or_replacement)
+        .collect();
+    WidgetOutput::new(vec![WidgetLine::new(vec![Run::new(&text, Tone::Plain)])])
+        .validate(text.chars().count(), 1)
+        .unwrap();
+    assert_eq!(text, "A ????·░▒█");
+    for state in [
+        WidgetContentState::Empty,
+        WidgetContentState::InvalidInput,
+        WidgetContentState::Unsupported,
+        WidgetContentState::ResourceLimited,
+        WidgetContentState::Cancelled,
+        WidgetContentState::Failed,
+    ] {
+        let notice = WidgetNotice {
+            kind: WidgetNoticeKind::ContentState { state },
+            visibility: NoticeVisibility::Hidden,
+        };
+        let message = notice.message();
+        assert!(!message.is_empty());
+        WidgetOutput::new(vec![WidgetLine::new(vec![Run::new(
+            &message,
+            Tone::Caution,
+        )])])
+        .validate(message.len(), 1)
+        .unwrap();
+    }
+}
+
+#[test]
 fn widget_output_is_styled_text_without_component_semantics() {
     let output = WidgetOutput::new(vec![WidgetLine::new(vec![
         Run::new("cpu ", Tone::Label),

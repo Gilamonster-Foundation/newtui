@@ -1021,6 +1021,11 @@ fn copy_crate(root: &Path, dest: &Path) {
         "newtui-corpus/README.md",
         "newtui-corpus/fixtures/dial.json",
         "newtui-corpus/fixtures/dial.cbor",
+        // The Mermaid member runs its own mutations; the arena only needs a
+        // loadable workspace member, so copy it without scanning its guards.
+        "newtui-mermaid/Cargo.toml",
+        "newtui-mermaid/src/lib.rs",
+        "newtui-mermaid/src/projection.rs",
     ] {
         let parent = dest
             .join(file)

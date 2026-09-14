@@ -41,11 +41,33 @@ pub enum NoticeVisibility {
     Hidden,
 }
 
+/// Source-free state of the content a widget was asked to display.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum WidgetContentState {
+    /// Valid input contains no displayable data.
+    Empty,
+    /// Input could not be interpreted under the accepted format.
+    InvalidInput,
+    /// The requested content or presentation is not supported.
+    Unsupported,
+    /// A caller's resource limit refused the content.
+    ResourceLimited,
+    /// The caller cancelled the work or its deadline expired.
+    Cancelled,
+    /// Content preparation failed for another reason.
+    Failed,
+}
+
 /// Renderer-independent facts about a widget's presentation, without source text.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum WidgetNoticeKind {
-    /// Undeclared source codepoints replaced before clipping or pane duplication.
+    /// Undeclared input codepoints projected before clipping or pane duplication.
+    ///
+    /// The input is the widget's text domain: diff source lines, for example,
+    /// or a diagram backend's rendered text. Counts describe input occurrences,
+    /// not emitted replacement cells; wide or zero-width text can differ.
     GlyphReplacements {
         /// Number of replaced codepoint occurrences.
         count: usize,
@@ -78,6 +100,11 @@ pub enum WidgetNoticeKind {
         /// Layout actually used.
         rendered: &'static str,
     },
+    /// A content outcome whose detailed diagnostic remains with the host's data.
+    ContentState {
+        /// Reusable category without source text or backend-specific details.
+        state: WidgetContentState,
+    },
 }
 
 /// A diagnostic survives even when a widget has no display cells.
@@ -106,6 +133,15 @@ impl WidgetNotice {
                 requested,
                 rendered,
             } => format!("{requested} -> {rendered}"),
+            WidgetNoticeKind::ContentState { state } => match state {
+                WidgetContentState::Empty => "No data",
+                WidgetContentState::InvalidInput => "Invalid input",
+                WidgetContentState::Unsupported => "Unsupported content",
+                WidgetContentState::ResourceLimited => "Resource limit reached",
+                WidgetContentState::Cancelled => "Cancelled",
+                WidgetContentState::Failed => "Content unavailable",
+            }
+            .into(),
         }
     }
 }
@@ -245,7 +281,13 @@ pub(crate) fn is_declared_glyph(glyph: char) -> bool {
         || matches!(glyph, '\u{2591}' | '\u{2592}' | '\u{2588}' | '\u{00b7}')
 }
 
-pub(crate) fn declared_glyph_or_replacement(glyph: char) -> char {
+/// Project one codepoint into the widget's closed, single-column vocabulary.
+///
+/// Declared glyphs pass through; every other codepoint becomes `?`. Adapters
+/// preserving an existing terminal layout must also account for the original
+/// grapheme's display width. This helper neither measures text nor mutates it.
+#[must_use]
+pub fn declared_glyph_or_replacement(glyph: char) -> char {
     if is_declared_glyph(glyph) {
         glyph
     } else {

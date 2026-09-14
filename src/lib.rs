@@ -57,10 +57,11 @@ pub use view::{Row, View};
 #[cfg(feature = "ratatui")]
 pub use widget::ratatui_lines;
 pub use widget::{
-    bar, butterfly, core_grid, diff, diff_layout, diff_with_sources, gauge, heat_meter, sparkline,
-    ContextRun, CoreSeries, DiffData, DiffFileError, DiffGeometry, DiffLayout, DiffLayoutRow,
-    DiffProjection, DiffSide, DiffSourceSpan, DiffTarget, NoticeVisibility, Run, SparkDirection,
-    Tone, WidgetLine, WidgetNotice, WidgetNoticeKind, WidgetOutput, WidgetOutputError,
+    bar, butterfly, core_grid, declared_glyph_or_replacement, diff, diff_layout, diff_with_sources,
+    gauge, heat_meter, sparkline, ContextRun, CoreSeries, DiffData, DiffFileError, DiffGeometry,
+    DiffLayout, DiffLayoutRow, DiffProjection, DiffSide, DiffSourceSpan, DiffTarget,
+    NoticeVisibility, Run, SparkDirection, Tone, WidgetContentState, WidgetLine, WidgetNotice,
+    WidgetNoticeKind, WidgetOutput, WidgetOutputError,
 };
 
 /// The README's example is compiled and RUN, not read and believed.
