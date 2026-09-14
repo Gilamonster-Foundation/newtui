@@ -6,8 +6,8 @@ pub mod options;
 mod palette;
 
 use fixtures::{
-    notice_text, settings_seed, BspPreview, DiffPreview, Entry, Kind, LinkedPreview, Scenario,
-    ENTRIES,
+    notice_text, settings_seed, BspPreview, DemoStream, DiffPreview, Entry, Kind, LinkedPreview,
+    Scenario, ENTRIES,
 };
 use newtui::{
     components::settings_panel::SettingsPanel, ratatui_lines, Component, Flow, Key, WidgetOutput,
@@ -35,6 +35,8 @@ pub struct Catalog {
     diff: DiffPreview,
     bsp: BspPreview,
     linked: LinkedPreview,
+    stream: DemoStream,
+    animated: bool,
     notice_index: usize,
 }
 
@@ -62,6 +64,8 @@ impl Catalog {
             diff: options.diff,
             bsp: options.bsp,
             linked: LinkedPreview::new(options.scenario),
+            stream: DemoStream::default(),
+            animated: options.animate,
             notice_index: 0,
         }
     }
@@ -92,6 +96,7 @@ impl Catalog {
         self.diff = DiffPreview::default();
         self.bsp = BspPreview::default();
         self.linked = LinkedPreview::new(self.scenario);
+        self.stream.reset();
         self.notice_index = 0;
     }
 
@@ -103,6 +108,16 @@ impl Catalog {
             48
         };
         self.reset();
+    }
+
+    /// Called by the terminal host's deadline, never by render or key decoding.
+    pub fn advance(&mut self, ticks: usize) -> bool {
+        self.animated
+            && self
+                .selected_entry()
+                .is_some_and(|entry| entry.kind.supports_stream())
+            && !matches!(self.scenario, Scenario::Empty | Scenario::Error)
+            && self.stream.advance(ticks)
     }
 
     fn resize(&mut self, grow: bool) {
@@ -178,6 +193,41 @@ impl Catalog {
                 return false;
             }
             _ => {}
+        }
+        if self
+            .selected_entry()
+            .is_some_and(|entry| entry.kind.supports_stream())
+            && event.modifiers.is_empty()
+        {
+            match event.code {
+                KeyCode::Char(' ') => {
+                    if self.animated {
+                        self.stream.toggle();
+                    } else {
+                        self.animated = true;
+                    }
+                    return false;
+                }
+                KeyCode::Char('.') => {
+                    self.animated = true;
+                    self.stream.step();
+                    return false;
+                }
+                KeyCode::Char('r') if self.focused => {
+                    self.reset();
+                    return false;
+                }
+                KeyCode::Char('n')
+                    if self.animated
+                        && self
+                            .selected_entry()
+                            .is_some_and(|entry| entry.kind == Kind::Bsp) =>
+                {
+                    self.notice_index = self.notice_index.wrapping_add(1);
+                    return false;
+                }
+                _ => {}
+            }
         }
         if self.focused {
             if self
@@ -370,13 +420,22 @@ impl Catalog {
                 .selected_entry()
                 .is_some_and(|entry| entry.kind == Kind::Bsp)
         {
-            "BSP Tab divider · ↑↓ ratio · ←→ size\ns shrink/restore · x reject NaN · F1 catalog\nF2 fixture · F3 theme · F4 reset · Ctrl-C quit"
+            "BSP Tab divider · ↑↓ ratio · ←→ size\ns shrink/restore · Space pause · . step · n data/geometry\nF1 catalog · F2 fixture · F3 theme · Ctrl-C quit"
         } else if self.focused
             && self
                 .selected_entry()
                 .is_some_and(|entry| entry.kind == Kind::LinkedPanes)
         {
             "LINKED ↑↓/Pg/Home/End cursor · Tab focus\nl link mode · ←→ size · Esc cancel · F1 catalog\nF2 fixture · F3 theme · F4 reset · Ctrl-C quit"
+        } else if self
+            .selected_entry()
+            .is_some_and(|entry| entry.kind.supports_stream())
+        {
+            if self.focused {
+                "DATA Space live/pause · . step · r reset\n←→ size · F2 fixture · F3 theme · F1 catalog\nEsc catalog · Ctrl-C quit"
+            } else {
+                "DATA Space live/pause · . step · r reset\n←→ size · f fixture · t theme · Enter interact\n/ search · q quit · Ctrl-C quit"
+            }
         } else if self.focused {
             "INTERACT   F1 catalog · F2 fixture · F3 theme · F4 reset · Ctrl-C quit"
         } else if frame.area().width < 80 {
@@ -389,7 +448,19 @@ impl Catalog {
             .map(|line| Line::styled(line, Style::default().fg(palette.accent)))
             .collect();
         footer.push(Line::styled(
-            if frame.area().width < 80 {
+            if self.animated
+                && self
+                    .selected_entry()
+                    .is_some_and(|entry| entry.kind.supports_stream())
+            {
+                if self.stream.paused() {
+                    "Synthetic time series. Paused; . steps once."
+                } else if matches!(self.scenario, Scenario::Empty | Scenario::Error) {
+                    "Synthetic fixture; no live samples."
+                } else {
+                    "Synthetic time series. Live data every 250 ms."
+                }
+            } else if frame.area().width < 80 {
                 "Live library fixtures."
             } else {
                 "Fixed samples. Real library code. Your terminal is the canvas."
@@ -532,6 +603,20 @@ impl Catalog {
             let output = self.widget_output(entry, content);
             notice = if entry.kind == Kind::LinkedPanes {
                 Some(self.linked.status())
+            } else if self.animated
+                && entry.kind.supports_stream()
+                && (entry.kind != Kind::Bsp || self.notice_index.is_multiple_of(2))
+            {
+                let caption = entry.kind.stream_caption(self.scenario, &self.stream, true);
+                Some(format!(
+                    "{}{}",
+                    caption.lines().take(2).collect::<Vec<_>>().join("\n"),
+                    if entry.kind == Kind::Bsp {
+                        "\nn: geometry details"
+                    } else {
+                        ""
+                    }
+                ))
             } else if entry.kind == Kind::Bsp {
                 Some(
                     self.bsp
@@ -690,11 +775,17 @@ impl Catalog {
                 vertical: 1,
             });
         let width = self.width.min(inner.width);
-        let height = entry
-            .kind
-            .output(self.scenario, usize::from(width))?
-            .lines
-            .len();
+        let height = if self.animated && entry.kind == Kind::CoreGrid {
+            12
+        } else if self.animated && entry.kind == Kind::Sparkline {
+            8
+        } else {
+            entry
+                .kind
+                .output(self.scenario, usize::from(width))?
+                .lines
+                .len()
+        };
         let height = u16::try_from(height)
             .unwrap_or(u16::MAX)
             .min(inner.height.saturating_sub(1));
@@ -707,7 +798,14 @@ impl Catalog {
     }
 
     fn widget_output(&self, entry: &Entry, content: Rect) -> WidgetOutput {
-        if entry.kind == Kind::Diff {
+        if self.animated && entry.kind.supports_stream() && entry.kind != Kind::Bsp {
+            entry.kind.stream_output(
+                self.scenario,
+                &self.stream,
+                usize::from(content.width),
+                usize::from(content.height),
+            )
+        } else if entry.kind == Kind::Diff {
             self.diff.output(
                 self.scenario,
                 usize::from(content.width),
@@ -717,8 +815,16 @@ impl Catalog {
             self.linked
                 .output(usize::from(content.width), usize::from(content.height))
         } else if entry.kind == Kind::Bsp {
-            self.bsp.output(
+            self.bsp.output_with_stream(
                 self.scenario,
+                usize::from(content.width),
+                usize::from(content.height),
+                self.animated.then_some(&self.stream),
+            )
+        } else if entry.kind == Kind::ButterflyHistory {
+            entry.kind.stream_output(
+                self.scenario,
+                &self.stream,
                 usize::from(content.width),
                 usize::from(content.height),
             )
@@ -1011,6 +1117,121 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    // GUARD: tests::animated_numeric_pieces_change_real_chart_cells_and_pause_exactly
+    #[test]
+    fn animated_numeric_pieces_change_real_chart_cells_and_pause_exactly() {
+        use std::collections::BTreeSet;
+        for entry in ENTRIES.iter().filter(|entry| entry.kind.supports_stream()) {
+            let mut catalog = Catalog::new(Options {
+                item: entry.kind,
+                width: 88,
+                animate: true,
+                ..Options::default()
+            });
+            let content = |catalog: &mut Catalog| {
+                let buffer = render(catalog, 150, 50);
+                let area = catalog.preview_content_rect(buffer.area).unwrap();
+                assert!(preview_matches(catalog, &buffer));
+                (area.y..area.bottom())
+                    .map(|y| {
+                        (area.x..area.right())
+                            .map(|x| buffer[(x, y)].symbol())
+                            .collect::<String>()
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let mut frames = BTreeSet::new();
+            for _ in 0..24 {
+                frames.insert(content(&mut catalog));
+                assert!(catalog.advance(1), "{} must consume host time", entry.id);
+            }
+            assert!(
+                frames.len() >= 8,
+                "{} changes only its caption or has no visible rise/fall: {} distinct chart frames",
+                entry.id,
+                frames.len()
+            );
+            press(&mut catalog, KeyCode::Char(' '));
+            let paused = content(&mut catalog);
+            assert!(!catalog.advance(10));
+            assert_eq!(content(&mut catalog), paused);
+            press(&mut catalog, KeyCode::Char('.'));
+            assert_eq!(catalog.stream.tick(), 25);
+            assert!(catalog.stream.paused());
+            assert_ne!(
+                content(&mut catalog),
+                paused,
+                "single step moves {} data",
+                entry.id
+            );
+            let before = catalog.stream.clone();
+            catalog.handle(KeyEvent::new(KeyCode::Char('.'), KeyModifiers::ALT));
+            catalog.handle(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::CONTROL));
+            assert_eq!(catalog.stream, before);
+            press(&mut catalog, KeyCode::Char('r'));
+            assert_eq!(catalog.stream.tick(), 0);
+            assert_eq!(
+                catalog.width, 88,
+                "sample reset preserves the capture's requested width"
+            );
+            assert!(!catalog.advance(1));
+            press(&mut catalog, KeyCode::Char(' '));
+            assert!(catalog.advance(1));
+        }
+    }
+
+    #[test]
+    fn static_catalog_requires_explicit_live_input_and_empty_fixtures_do_not_invent_samples() {
+        let mut catalog = Catalog::new(Options {
+            item: Kind::CoreGrid,
+            ..Options::default()
+        });
+        assert!(!catalog.advance(100));
+        assert_eq!(catalog.stream.tick(), 0);
+        press(&mut catalog, KeyCode::Char(' '));
+        assert!(catalog.advance(1));
+        for scenario in [Scenario::Empty, Scenario::Error] {
+            catalog.scenario = scenario;
+            let before = render(&mut catalog, 120, 36);
+            assert!(!catalog.advance(100));
+            assert_eq!(render(&mut catalog, 120, 36), before);
+            assert!(text(&before).contains("no live samples"));
+        }
+        let options =
+            Options::parse(["--item", "butterfly_history", "--animate"].map(str::to_string))
+                .unwrap();
+        assert!(options.animate);
+        assert_eq!(options.item, Kind::ButterflyHistory);
+    }
+
+    #[test]
+    fn twelve_core_rows_have_independent_histories_and_matching_current_values() {
+        let mut stream = DemoStream::default();
+        for tick in 0..36 {
+            let histories = stream.core_histories();
+            assert_eq!(histories.len(), 12);
+            let output = Kind::CoreGrid.stream_output(Scenario::Normal, &stream, 72, 12);
+            let unique: std::collections::BTreeSet<_> = histories
+                .iter()
+                .map(|history| {
+                    history
+                        .iter()
+                        .map(|sample| sample.to_bits())
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+            assert!(unique.len() >= 10, "independent cores at tick {tick}");
+            for (core, history) in histories.iter().enumerate() {
+                let text = output.lines[core].text();
+                assert!(text.starts_with(&format!("{core:02} ")));
+                assert!(text.ends_with(&format!("{:>3.0}%", history.last().unwrap())));
+                assert!(history.iter().any(|value| *value >= 80.0));
+                assert!(history.iter().any(|value| *value <= 30.0));
+            }
+            stream.advance(1);
         }
     }
 

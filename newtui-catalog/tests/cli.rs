@@ -23,6 +23,7 @@ fn help_and_registry_are_available_without_a_terminal() {
             "settings_panel",
             "sparkline",
             "butterfly",
+            "butterfly_history",
             "heat_meter",
             "gauge",
             "bar",

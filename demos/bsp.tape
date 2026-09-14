@@ -15,7 +15,7 @@ Enter
 Wait+Screen /full width \/ normal/
 Sleep 500ms
 Show
-Sleep 1s
+Sleep 10s
 Type "s"
 Sleep 1s
 Type "s"
@@ -27,6 +27,10 @@ Down
 Sleep 1s
 Type "x"
 Sleep 1s
+Type " "
+Sleep 500ms
+Type "."
+Sleep 500ms
 Type "r"
 Left
 Sleep 800ms

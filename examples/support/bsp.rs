@@ -1,6 +1,6 @@
 //! Shared host fixture: real geometry places existing widget output.
 
-use super::{Kind, Scenario};
+use super::{DemoStream, Kind, Scenario};
 use newtui::layout::{changed_panes, Direction, LayoutTree, PaneId, Rect, SplitBorder};
 use newtui::{Key, Run, Tone, WidgetLine, WidgetOutput};
 
@@ -161,6 +161,16 @@ impl BspPreview {
 
     /// Compose the existing builders inside the exact library pane rectangles.
     pub fn output(&self, scenario: Scenario, width: usize, height: usize) -> WidgetOutput {
+        self.output_with_stream(scenario, width, height, None)
+    }
+
+    pub fn output_with_stream(
+        &self,
+        scenario: Scenario,
+        width: usize,
+        height: usize,
+        stream: Option<&DemoStream>,
+    ) -> WidgetOutput {
         let columns = u16::try_from(width).expect("catalog width fits terminal coordinates");
         let rows = u16::try_from(height).expect("catalog height fits terminal coordinates");
         let area = Self::area(scenario, columns, rows, self.shrunk);
@@ -179,9 +189,20 @@ impl BspPreview {
                 20 => (Kind::Gauge, "BUDGET"),
                 _ => (Kind::Butterfly, "NETWORK"),
             };
-            let output = kind
-                .output(sample, usize::from(pane.width))
-                .expect("a pane owns a real widget");
+            let output = stream.map_or_else(
+                || {
+                    kind.output(sample, usize::from(pane.width))
+                        .expect("a pane owns a real widget")
+                },
+                |stream| {
+                    kind.stream_output(
+                        sample,
+                        stream,
+                        usize::from(pane.width),
+                        usize::from(pane.height).saturating_sub(usize::from(pane.height > 1)),
+                    )
+                },
+            );
             // At one row, keep the widget's signal rather than spending it on a title.
             let header = usize::from(pane.height > 1);
             if header > 0 {

@@ -1,4 +1,5 @@
 use std::io;
+use std::time::Instant;
 
 // Both hosts use one registry and the same fixed inputs. The library itself
 // never acquires a dependency on its catalog executable.
@@ -6,8 +7,8 @@ use std::io;
 #[path = "support/fixtures.rs"]
 mod fixtures;
 use fixtures::{
-    notice_text, settings_seed, BspPreview, DiffPreview, Kind as WidgetKind, LinkedPreview,
-    Scenario,
+    notice_text, settings_seed, BspPreview, DemoStream, DiffPreview, Kind as WidgetKind,
+    LinkedPreview, Scenario, TickClock,
 };
 use newtui::components::settings_panel::SettingsPanel;
 use newtui::{ratatui_lines, Component, Flow, Key, Tone, View, WidgetOutput};
@@ -34,11 +35,24 @@ fn main() -> io::Result<()> {
 }
 
 fn run(terminal: &mut DefaultTerminal, demo: &mut Demo) -> io::Result<()> {
+    let mut clock = TickClock::new(Instant::now());
+    let mut dirty = true;
     loop {
-        terminal.draw(|frame| demo.render(frame))?;
-        if let Event::Key(event) = event::read()? {
-            if event.kind == KeyEventKind::Press && demo.handle(event) {
-                return Ok(());
+        dirty |= demo.advance(clock.take_due(Instant::now()));
+        if dirty {
+            terminal.draw(|frame| demo.render(frame))?;
+            dirty = false;
+        }
+        if event::poll(clock.timeout(Instant::now()))? {
+            match event::read()? {
+                Event::Key(event) if event.kind == KeyEventKind::Press => {
+                    if demo.handle(event) {
+                        return Ok(());
+                    }
+                    dirty = true;
+                }
+                Event::Resize(_, _) => dirty = true,
+                _ => {}
             }
         }
     }
@@ -50,6 +64,12 @@ enum Demo {
 }
 
 impl Demo {
+    fn advance(&mut self, ticks: usize) -> bool {
+        match self {
+            Self::Widget(demo) => demo.advance(ticks),
+            Self::Settings(_) => false,
+        }
+    }
     fn named(name: &str) -> Option<Self> {
         match WidgetKind::from_name(name)? {
             WidgetKind::Settings => Some(Self::Settings(SettingsDemo::new())),
@@ -189,6 +209,7 @@ struct WidgetDemo {
     diff: DiffPreview,
     bsp: BspPreview,
     linked: LinkedPreview,
+    stream: DemoStream,
     notice_index: usize,
 }
 
@@ -202,22 +223,43 @@ impl WidgetDemo {
             diff: DiffPreview::default(),
             bsp: BspPreview::default(),
             linked: LinkedPreview::default(),
+            stream: DemoStream::default(),
             notice_index: 0,
         }
     }
 
     fn handle(&mut self, event: KeyEvent) -> bool {
+        if event
+            .modifiers
+            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+        {
+            return event.code == KeyCode::Char('c')
+                && event.modifiers.contains(KeyModifiers::CONTROL);
+        }
+        if self.kind.supports_stream() {
+            match event.code {
+                KeyCode::Char(' ') => self.stream.toggle(),
+                KeyCode::Char('.') => self.stream.step(),
+                KeyCode::Char('r') | KeyCode::F(4) => {
+                    self.stream.reset();
+                    self.at = 0;
+                }
+                KeyCode::Char('f') | KeyCode::F(2) if self.kind != WidgetKind::Bsp => {
+                    self.scenario = self.scenario.next();
+                    self.stream.reset();
+                    self.at = if self.scenario == Scenario::Narrow {
+                        self.widths.len().saturating_sub(2)
+                    } else {
+                        0
+                    };
+                }
+                _ => {}
+            }
+        }
         if matches!(
             self.kind,
             WidgetKind::Diff | WidgetKind::Bsp | WidgetKind::LinkedPanes
         ) {
-            if event
-                .modifiers
-                .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
-            {
-                return event.code == KeyCode::Char('c')
-                    && event.modifiers.contains(KeyModifiers::CONTROL);
-            }
             match event.code {
                 KeyCode::Left | KeyCode::Right
                     if self.kind == WidgetKind::Diff
@@ -273,6 +315,12 @@ impl WidgetDemo {
         false
     }
 
+    fn advance(&mut self, ticks: usize) -> bool {
+        self.kind.supports_stream()
+            && !matches!(self.scenario, Scenario::Empty | Scenario::Error)
+            && self.stream.advance(ticks)
+    }
+
     fn render(&mut self, frame: &mut Frame<'_>) {
         let width = self.widths[self.at];
         let mut output = self.output(width);
@@ -289,6 +337,13 @@ impl WidgetDemo {
         // Header and footer each draw one line. Giving either a padding row
         // would make the recorder steal the only content row from a short widget.
         let layout = self.layout(frame.area(), chart_height);
+        let state = if matches!(self.scenario, Scenario::Empty | Scenario::Error) {
+            self.scenario.name()
+        } else if self.stream.paused() {
+            "paused"
+        } else {
+            "live"
+        };
         frame.render_widget(
             Paragraph::new(if self.kind == WidgetKind::Diff {
                 Line::from(format!(
@@ -298,7 +353,7 @@ impl WidgetDemo {
                 ))
             } else if self.kind == WidgetKind::Bsp {
                 Line::from(format!(
-                    "{} / {} · {width} columns",
+                    "panel layout / {state} · {} / {} · {width} columns",
                     self.bsp.size_name(),
                     self.scenario.name()
                 ))
@@ -308,6 +363,19 @@ impl WidgetDemo {
                     self.linked.mode_name(),
                     self.scenario.name()
                 ))
+            } else if self.kind.supports_stream() {
+                Line::from(vec![
+                    Span::styled(
+                        format!("{} / synthetic {state}", self.kind.title()),
+                        Style::default()
+                            .fg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(
+                        format!(" · {width} columns"),
+                        Style::default().fg(Color::Gray),
+                    ),
+                ])
             } else {
                 Line::from(vec![
                     Span::styled("requested width: ", Style::default().fg(Color::DarkGray)),
@@ -326,16 +394,20 @@ impl WidgetDemo {
         if matches!(
             self.kind,
             WidgetKind::Diff | WidgetKind::Bsp | WidgetKind::LinkedPanes
-        ) {
+        ) || self.kind.supports_stream()
+        {
             frame.render_widget(
                 Paragraph::new(if self.kind == WidgetKind::LinkedPanes {
                     self.linked.status()
                 } else if self.kind == WidgetKind::Bsp {
-                    self.bsp.status(
-                        self.scenario,
-                        u16::try_from(width).expect("demo width fits u16"),
-                        chart_height,
+                    format!(
+                        "{}\n{}",
+                        self.stream.caption(true),
+                        self.bsp
+                            .status(self.scenario, u16::try_from(width).unwrap(), chart_height)
                     )
+                } else if self.kind.supports_stream() {
+                    self.kind.stream_caption(self.scenario, &self.stream, true)
                 } else {
                     notice_text(&output, self.notice_index)
                         .unwrap_or_else(|| self.scenario.note(self.kind).to_string())
@@ -349,25 +421,53 @@ impl WidgetDemo {
             Paragraph::new(if self.kind == WidgetKind::Diff {
                 "←→ size · ↑↓ rows · Shift-←→ columns · g layout · e context\nf fixture · n notice · Home scroll reset · r reset · q quit"
             } else if self.kind == WidgetKind::Bsp {
-                "Tab divider · ↑↓ ratio · s shrink/restore · x reject NaN\n←→ size · f fixture · r reset · q quit"
+                "Tab divider · ↑↓ ratio · s shrink/restore · Space pause · . step\n←→ size · f fixture · r reset · x reject NaN · q quit"
             } else if self.kind == WidgetKind::LinkedPanes {
                 "↑↓/Pg/Home/End cursor · Tab focus · l mode · Esc cancel\n> cursor · = mapped row · @ window top · ←→ size · f fixture · r reset · q quit"
+            } else if self.kind.supports_stream() {
+                "Space pause/resume · . single step · r reset · f fixture\n←→ size · q quit"
             } else {
                 "← narrower   → wider   q quit"
             })
-                .style(Style::default().fg(Color::DarkGray))
+                .style(Style::default().fg(if self.kind.supports_stream() { Color::Gray } else { Color::DarkGray }))
                 .alignment(Alignment::Center),
             layout[3],
         );
     }
 
     fn output(&self, width: usize) -> WidgetOutput {
-        if self.kind == WidgetKind::Diff {
-            self.diff.output(self.scenario, width, 16)
+        if self.kind == WidgetKind::Butterfly {
+            let mut compact = self
+                .kind
+                .stream_output(self.scenario, &self.stream, width, 1);
+            compact
+                .lines
+                .push(newtui::WidgetLine::new(vec![newtui::Run::new(
+                    " ".repeat(width),
+                    Tone::Muted,
+                )]));
+            compact.lines.extend(
+                WidgetKind::ButterflyHistory
+                    .stream_output(self.scenario, &self.stream, width, 24)
+                    .lines,
+            );
+            compact
         } else if self.kind == WidgetKind::LinkedPanes {
             self.linked.output(width, 16)
         } else if self.kind == WidgetKind::Bsp {
-            self.bsp.output(self.scenario, width, 16)
+            self.bsp
+                .output_with_stream(self.scenario, width, 16, Some(&self.stream))
+        } else if self.kind.supports_stream() {
+            let height = match self.kind {
+                WidgetKind::Sparkline => 8,
+                WidgetKind::ButterflyHistory => 24,
+                WidgetKind::CoreGrid => 12,
+                _ => 1,
+            };
+            self.kind
+                .stream_output(self.scenario, &self.stream, width, height)
+        } else if self.kind == WidgetKind::Diff {
+            self.diff.output(self.scenario, width, 16)
         } else {
             self.kind
                 .output(self.scenario, width)
@@ -379,18 +479,30 @@ impl WidgetDemo {
         let is_rich = matches!(
             self.kind,
             WidgetKind::Diff | WidgetKind::Bsp | WidgetKind::LinkedPanes
-        );
+        ) || self.kind.supports_stream();
         let host = centered(
             area,
             if is_rich { 106 } else { 42 },
-            chart_height.saturating_add(if is_rich { 8 } else { 4 }),
+            chart_height.saturating_add(if self.kind == WidgetKind::Bsp {
+                9
+            } else if is_rich {
+                8
+            } else {
+                4
+            }),
         );
         let parts = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(1),
                 Constraint::Length(chart_height.saturating_add(2)),
-                Constraint::Length(if is_rich { 3 } else { 0 }),
+                Constraint::Length(if self.kind == WidgetKind::Bsp {
+                    4
+                } else if is_rich {
+                    3
+                } else {
+                    0
+                }),
                 Constraint::Length(if is_rich { 2 } else { 1 }),
             ])
             .split(host);
@@ -421,6 +533,7 @@ pub(crate) fn assert_recorded_demos_render_content() {
     for name in [
         "sparkline",
         "butterfly",
+        "butterfly_history",
         "heat_meter",
         "gauge",
         "bar",
@@ -440,7 +553,9 @@ pub(crate) fn assert_recorded_demos_render_content() {
             // The short tapes expose six rows; the taller recordings have room
             // for their four-row widgets. Keeping the short case constrained is
             // what exercises the release artifact instead of a roomier fiction.
-            let recorder_height = if matches!(name, "diff" | "bsp" | "linked_panes") {
+            let recorder_height = if demo.kind.supports_stream() {
+                height + if demo.kind == WidgetKind::Bsp { 9 } else { 8 }
+            } else if matches!(name, "diff" | "bsp" | "linked_panes") {
                 28
             } else if height == 1 {
                 6
@@ -450,7 +565,7 @@ pub(crate) fn assert_recorded_demos_render_content() {
             let frame_area = Rect::new(
                 0,
                 0,
-                if matches!(name, "diff" | "bsp" | "linked_panes") {
+                if matches!(name, "diff" | "bsp" | "linked_panes") || demo.kind.supports_stream() {
                     120
                 } else {
                     64
@@ -664,6 +779,73 @@ fn linked_demo_forwards_navigation_and_renders_the_component_window() {
     press(&mut demo, KeyCode::Char('r'));
     assert_eq!(demo.linked.component().unwrap().mode(), LinkMode::Locked);
     assert!(press(&mut demo, KeyCode::Char('q')));
+}
+
+#[cfg(test)]
+#[test]
+fn numeric_named_demos_advance_source_cells_and_honor_pause_step_reset() {
+    use ratatui::{backend::TestBackend, Terminal};
+    use std::collections::BTreeSet;
+    for entry in fixtures::ENTRIES
+        .iter()
+        .filter(|entry| entry.kind.supports_stream())
+    {
+        let mut demo = Demo::named(entry.id).unwrap();
+        let content = |demo: &mut Demo| {
+            let Demo::Widget(widget) = demo else {
+                panic!("numeric entry uses the widget host");
+            };
+            let output = widget.output(widget.widths[0]);
+            let height = u16::try_from(output.lines.len()).unwrap();
+            let mut terminal = Terminal::new(TestBackend::new(120, height + 10)).unwrap();
+            terminal.draw(|frame| demo.render(frame)).unwrap();
+            let buffer = terminal.backend().buffer();
+            let Demo::Widget(widget) = demo else {
+                unreachable!("render preserves the selected demo");
+            };
+            let area = widget.chart_block().inner(widget.chart_area(
+                buffer.area,
+                widget.widths[0],
+                height,
+            ));
+            (area.y..area.bottom())
+                .map(|y| {
+                    (area.x..area.right())
+                        .map(|x| buffer[(x, y)].symbol())
+                        .collect::<String>()
+                })
+                .collect::<Vec<_>>()
+        };
+        let mut frames = BTreeSet::new();
+        for _ in 0..24 {
+            frames.insert(content(&mut demo));
+            assert!(demo.advance(1));
+        }
+        assert!(
+            frames.len() >= 8,
+            "{} named recording must move actual chart cells",
+            entry.id
+        );
+        let press = |demo: &mut Demo, code| demo.handle(KeyEvent::new(code, KeyModifiers::NONE));
+        press(&mut demo, KeyCode::Char(' '));
+        let paused = content(&mut demo);
+        assert!(!demo.advance(50));
+        assert_eq!(content(&mut demo), paused);
+        press(&mut demo, KeyCode::Char('.'));
+        assert_ne!(content(&mut demo), paused);
+        let Demo::Widget(widget) = &demo else {
+            unreachable!();
+        };
+        assert!(widget.stream.paused());
+        assert_eq!(widget.stream.tick(), 25);
+        press(&mut demo, KeyCode::Char('r'));
+        let Demo::Widget(widget) = &demo else {
+            unreachable!();
+        };
+        assert_eq!(widget.stream.tick(), 0);
+        assert!(widget.stream.paused());
+        assert!(press(&mut demo, KeyCode::Char('q')));
+    }
 }
 
 #[cfg(test)]

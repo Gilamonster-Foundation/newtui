@@ -28,6 +28,8 @@ captures=(
   docs/widgets/generated/linked-panes.png
   docs/widgets/generated/linked-panes-anchor.png
   docs/widgets/generated/linked-panes-narrow.png
+  docs/widgets/generated/butterfly-history.png
+  docs/widgets/generated/core-grid-live.png
   demos/catalog/catalog.gif
   demos/catalog/light.gif
   demos/catalog/narrow.gif
@@ -35,6 +37,7 @@ captures=(
   demos/catalog/diff.gif
   demos/catalog/bsp.gif
   demos/catalog/linked_panes.gif
+  demos/catalog/activity.gif
 )
 
 capture_animate demos/catalog/catalog.gif demos/catalog/catalog.png
@@ -43,4 +46,5 @@ capture_publish "${captures[@]}"
 capture_metadata docs/widgets/generated/CAPTURES.md "${tapes[@]}"
 capture_metadata docs/widgets/generated/BSP-CAPTURES.md demos/catalog/bsp.tape
 capture_metadata docs/widgets/generated/LINKED-PANES-CAPTURES.md demos/catalog/linked_panes.tape
+capture_metadata docs/widgets/generated/ACTIVITY-CAPTURES.md demos/catalog/activity.tape
 echo 'Captured catalog PNGs in docs/widgets/generated and GIF/APNG in demos/catalog.'

@@ -2,18 +2,18 @@
 
 Generated from the real terminal host using the checked-in tapes below.
 
-Source revision: ad61c319cf64cee2ad8bf00033b0621e52df9fe2
-Recorder: vhs version v0.11.0 (c6af91a)
+Source revision: 3873e04a5a47a01e2927c261117d1714c533684b
+Recorder: vhs version unknown (built from source)
 Working tree: includes the reviewed changes accompanying these captures.
 
-## demos/butterfly.tape
+## demos/butterfly_history.tape
 
 ```text
-Output demos/butterfly.gif
+Output demos/butterfly_history.gif
 
 Set Shell "bash"
 Set Width 1320
-Set Height 1000
+Set Height 940
 Set FontSize 16
 Set FontFamily "Menlo"
 Set Theme "Catppuccin Mocha"
@@ -21,7 +21,7 @@ Set CursorBlink false
 Set Padding 16
 
 Hide
-Type `"${NEWTUI_DEMO_BIN:-./target/debug/examples/demo}" butterfly`
+Type `"${NEWTUI_DEMO_BIN:-./target/debug/examples/demo}" butterfly_history`
 Enter
 Wait+Screen /SYNTHETIC LIVE/
 Sleep 500ms

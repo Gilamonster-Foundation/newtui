@@ -9,7 +9,7 @@ being collected into a reusable Rust library.
 
 **[Browse the widget catalog →](docs/WIDGETS.md)**
 
-[![Live newtui catalog with the heat graph selected](docs/widgets/generated/catalog.png)](docs/WIDGETS.md)
+[![Twelve cores with independent activity and scrolling histories](demos/core_grid.gif)](docs/WIDGETS.md)
 
 - **Controls:** settings panels, choosers, and configuration editors.
 - **Charts:** heat graphs, butterfly meters, heat bars, gauges, and machine cards.
@@ -21,17 +21,19 @@ default.
 
 ## Status
 
-The library ships a settings component, six chart widgets, a diff display,
-BSP pane geometry, the state explorer, an optional
+The library ships settings and linked-pane components, seven chart widgets,
+a diff display, BSP pane geometry, the state explorer, an optional
 [ratatui adapter](docs/renderer-compatibility.md) and Python bindings. The catalog
-distinguishes these from donor and planned components. Every shipped piece has
-an animated demo.
+distinguishes these from included implementation sources and planned components.
+Numeric demos show changing values and flowing histories; every shipped piece
+has an animated demo.
 
 Explore the real widgets from this checkout:
 
 ```sh
 just catalog
-just catalog --item butterfly --scenario narrow
+just catalog --item core_grid --animate
+just catalog --item butterfly_history --animate
 ```
 
 The catalog is an optional host; your application only needs the library.
