@@ -279,6 +279,11 @@ impl<'a> Parser<'a> {
                 (true, false, DiffLine::Remove(text.to_owned()))
             } else if let Some(text) = line.strip_prefix(' ') {
                 (true, true, DiffLine::Context(text.to_owned()))
+            } else if line.is_empty() {
+                // `diffy` (and some git configs) emit a blank context line as
+                // a bare newline rather than a single leading space. Treat it
+                // the same as " " with empty text — still a context line.
+                (true, true, DiffLine::Context(String::new()))
             } else {
                 return Err(self.error(ParseErrorKind::InvalidDiffLine));
             };

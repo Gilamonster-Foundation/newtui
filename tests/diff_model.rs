@@ -297,3 +297,24 @@ fn rename_copy_and_rewrite_can_change_mode_and_content_together() {
     round_trip("diff --git a/f b/f\nnew file mode 100644\nindex 0000000..abcdef0\n");
     round_trip("diff --git a/f b/f\ndeleted file mode 100644\nindex abcdef0..0000000\n");
 }
+
+#[test]
+fn blank_context_line_emitted_as_bare_newline_parses_as_empty_context() {
+    // diffy (and some git configs) emit a blank context line as a bare "\n"
+    // rather than the usual " \n". Before the fix this hit InvalidDiffLine
+    // because only ' ', '+', and '-' prefixes were accepted.
+    let source = "--- a/f\n+++ b/f\n@@ -1,3 +1,3 @@\n a\n\n-b\n+c\n";
+    let changes = from_unified(source).expect("bare blank context line parses");
+    let lines = changes.files()[0].hunks()[0].lines();
+    assert_eq!(lines[0], DiffLine::Context("a".into()));
+    assert_eq!(lines[1], DiffLine::Context(String::new()));
+    assert_eq!(lines[2], DiffLine::Remove("b".into()));
+    assert_eq!(lines[3], DiffLine::Add("c".into()));
+    // Canonical form normalizes the bare blank line to " \n" and is stable.
+    let canonical = changes.to_unified();
+    assert_eq!(
+        canonical,
+        "--- a/f\n+++ b/f\n@@ -1,3 +1,3 @@\n a\n \n-b\n+c\n"
+    );
+    assert_eq!(from_unified(&canonical).unwrap(), changes);
+}
