@@ -3,6 +3,9 @@
 #[path = "bsp.rs"]
 mod bsp;
 pub use bsp::BspPreview;
+#[path = "modal.rs"]
+mod modal;
+pub use modal::ModalPreview;
 #[path = "linked.rs"]
 mod linked;
 pub use linked::LinkedPreview;
@@ -42,6 +45,7 @@ pub enum Kind {
     CoreGrid,
     Diff,
     Bsp,
+    Modal,
     LinkedPanes,
 }
 
@@ -119,6 +123,13 @@ pub const ENTRIES: &[Entry] = &[
         kind: Kind::Bsp,
     },
     Entry {
+        id: "modal",
+        name: "Modal height",
+        description: "Grow and shrink from what is on screen. Zoom, then return to it.",
+        data: "The height the host granted. The library answers with the next request.",
+        kind: Kind::Modal,
+    },
+    Entry {
         id: "linked_panes",
         name: "Linked panes",
         description: "Follow a selected source row across unequal regions. Keep each cursor visible.",
@@ -177,6 +188,13 @@ impl Scenario {
             (Self::Empty, Kind::LinkedPanes) => "Both sources are empty; neither pane invents a cursor.",
             (Self::Error, Kind::LinkedPanes) => "A crossing map is rejected by the real constructor; source remains available.",
             (_, Kind::LinkedPanes) => "> active cursor, . other cursor, = mapped row. An anchor is a boundary, never a row. @ gives the first visible row.",
+            (Self::Empty | Self::Error, Kind::Modal) => {
+                "A zero-row request is raised to MIN_ROWS: border, one row, hint, border."
+            }
+            (Self::Long, Kind::Modal) => {
+                "A request taller than the screen; the host grants what fits."
+            }
+            (_, Kind::Modal) => "Enter to explore. Shift-↑↓ or +/- height; z zoom/restore.",
             (Self::Empty, Kind::Bsp) => "Empty geometry retains every pane ID and split path.",
             (Self::Error, Kind::Bsp) => {
                 "A nonfinite ratio edit is rejected without changing the layout."
@@ -247,12 +265,14 @@ impl Kind {
             Self::CoreGrid => "cpu cores",
             Self::Diff => "code changes",
             Self::Bsp => "panel layout",
+            Self::Modal => "modal size",
             Self::LinkedPanes => "linked panes",
         }
     }
 
     pub fn demo_widths(self) -> &'static [usize] {
         match self {
+            Self::Modal => &[48, 24, 12, 1],
             Self::Diff
             | Self::Bsp
             | Self::LinkedPanes
@@ -309,6 +329,9 @@ impl Kind {
             }
             Self::Diff => DiffPreview::default().output(scenario, width, 16),
             Self::Bsp => BspPreview::default().output(scenario, width, 16),
+            Self::Modal => {
+                ModalPreview::new(scenario).output(width, usize::from(modal::SCREEN_ROWS))
+            }
             Self::LinkedPanes => {
                 let mut preview = LinkedPreview::new(scenario);
                 preview.resize(u16::try_from(width).expect("host width fits u16"), 16);

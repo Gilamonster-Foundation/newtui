@@ -1,7 +1,8 @@
 //! Pure layout primitives. Hosts provide pane identities and draw the result.
 //!
 //! Geometry describes rectangles and dividers; it owns neither pane content
-//! nor a terminal, data source, focus model, or resize timer.
+//! nor a terminal, data source, focus model, or resize timer. [`bsp`] splits
+//! an area into panes; [`modal`] decides how tall a modal viewport asks to be.
 //!
 //! ```
 //! use newtui::layout::{changed_panes, Direction, LayoutTree, Rect};
@@ -18,7 +19,9 @@
 //! ```
 
 pub mod bsp;
+pub mod modal;
 
 pub use bsp::{
     changed_panes, Direction, LayoutTree, PaneId, Rect, SplitBorder, MAX_RATIO, MIN_RATIO,
 };
+pub use modal::{ModalSize, SizeKey, FILL, MIN_ROWS};

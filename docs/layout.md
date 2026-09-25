@@ -118,6 +118,44 @@ size. It does not measure terminal repaint latency or execute host reflow work.
 The export guard treats layouts as a third category and requires each public
 layout module, documented entry, launchable fixture, and named demo to agree.
 
+## Modal height
+
+`newtui::layout::ModalSize` is the height policy of a modal viewport, and
+nothing else. It stores the requested height and, while zoomed, the height to
+return to. The host owns the screen, draws the modal, and decodes the input,
+whether a key such as Shift-↑ or a pointer drag on the modal's edge, into one
+`SizeKey`:
+
+| Intent | New request | Zoom |
+|---|---|---|
+| `Grow` | granted + 1 | left |
+| `Shrink` | granted − 1 | left |
+| `To(rows)` | `rows` | left |
+| `Zoom`, not zoomed | `FILL` (`u16::MAX`); remembers granted | entered |
+| `Zoom`, zoomed | the remembered height | left |
+
+Every new request is raised to `MIN_ROWS = 4`: border, one content row, the
+hint line, border. That is the least a modal can be and still say how to
+leave. `apply(key, granted)` takes the height the host actually drew, not the
+request, so Grow held at full height does not bank rows that Shrink would then
+have to work back through. It returns `Some(request)` only when the request
+changed, so a host can skip relayout on a no-op. The host clamps the request
+to its screen, which is what turns `FILL` into a full-screen modal.
+
+`tests/modal.rs` explores every reachable state on screens of 4 to 12 rows,
+from starting requests of 1 to 14, under grow, shrink, zoom, and drags to 0,
+1, 4 and 20 rows. It checks that no request falls below `MIN_ROWS`, the host
+never grants past the screen, and every grow or shrink steps one row from the
+granted height and leaves zoom. Plain tests pin the zoom round trip, drag
+flooring, and the no-op at the minimum. `tests/mutations.rs` executes defects
+that drop the floor on Shrink or `To`, keep `FILL` on a second zoom, grow from
+the request, keep zoom through a drag, or report every key as a change. Each
+must fail its named guard.
+
+The policy came from newt-agent's `newt-tui/src/modal_size.rs` (Apache-2.0,
+Gilamonster Foundation). It is identical here, apart from `zoomed` becoming
+public API.
+
 ## Donor provenance
 
 The one-cell divider contract comes from
