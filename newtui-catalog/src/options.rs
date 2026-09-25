@@ -5,7 +5,7 @@ use newtui::{DiffGeometry, Key};
 
 pub const HELP: &str = "newtui-catalog — Shawn's custom TUI widgets\n\n\
 Usage: newtui-catalog [--item NAME] [--scenario NAME] [--theme NAME] [--width N]\n\n\
-  --item       settings_panel, sparkline, butterfly, butterfly_history, heat_meter, gauge, bar, core_grid, diff, bsp, linked_panes\n\
+  --item       settings_panel, sparkline, butterfly, butterfly_history, heat_meter, gauge, bar, core_grid, diff, bsp, modal, linked_panes\n\
   --scenario   normal, narrow, empty, error, long\n\
   --theme      dark, light\n\
   --width      Preview content columns, 1..200 (narrow starts at 8)\n\
@@ -21,6 +21,7 @@ Browse: arrows select/resize, / search, Enter interact, f fixture, t theme, r re
 Interact: F1 returns to catalog; Esc goes to the component. F2 fixture, F3 theme, F4 reset.\n\
 Diff: g layout, e context, n notice, up/down rows, Shift-left/right columns, Home reset scroll.\n\
 BSP: Tab divider, up/down ratio, s shrink/restore, x reject NaN, Home reset geometry.\n\
+Modal: Shift-up/down or +/- height from the granted rows, z zoom/restore.\n\
 Linked panes: up/down/Page/Home/End cursor, Tab/BackTab focus, l mode, Esc cancel.\n\
 Numeric pieces: Space live/pause, . single step, r reset. Animated BSP: n data/geometry.\n\
 Ctrl-C exits from any mode. All examples use deterministic local data.\n";

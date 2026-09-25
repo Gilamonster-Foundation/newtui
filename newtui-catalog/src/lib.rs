@@ -7,7 +7,7 @@ mod palette;
 
 use fixtures::{
     notice_text, settings_seed, BspPreview, DemoStream, DiffPreview, Entry, Kind, LinkedPreview,
-    Scenario, ENTRIES,
+    ModalPreview, Scenario, ENTRIES,
 };
 use newtui::{
     components::settings_panel::SettingsPanel, ratatui_lines, Component, Flow, Key, WidgetOutput,
@@ -34,6 +34,7 @@ pub struct Catalog {
     outcome: Option<String>,
     diff: DiffPreview,
     bsp: BspPreview,
+    modal: ModalPreview,
     linked: LinkedPreview,
     stream: DemoStream,
     animated: bool,
@@ -63,6 +64,7 @@ impl Catalog {
             outcome: None,
             diff: options.diff,
             bsp: options.bsp,
+            modal: ModalPreview::new(options.scenario),
             linked: LinkedPreview::new(options.scenario),
             stream: DemoStream::default(),
             animated: options.animate,
@@ -95,6 +97,7 @@ impl Catalog {
         self.outcome = None;
         self.diff = DiffPreview::default();
         self.bsp = BspPreview::default();
+        self.modal = ModalPreview::new(self.scenario);
         self.linked = LinkedPreview::new(self.scenario);
         self.stream.reset();
         self.notice_index = 0;
@@ -301,6 +304,26 @@ impl Catalog {
                 }
             } else if self
                 .selected_entry()
+                .is_some_and(|entry| entry.kind == Kind::Modal)
+            {
+                if !event
+                    .modifiers
+                    .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+                {
+                    match event.code {
+                        KeyCode::Left => self.resize(false),
+                        KeyCode::Right => self.resize(true),
+                        KeyCode::Esc => self.focused = false,
+                        _ => {
+                            if let Some(key) = map_key(event) {
+                                self.modal
+                                    .handle(key, event.modifiers.contains(KeyModifiers::SHIFT));
+                            }
+                        }
+                    }
+                }
+            } else if self
+                .selected_entry()
                 .is_some_and(|entry| entry.kind == Kind::LinkedPanes)
             {
                 if event.modifiers.contains(KeyModifiers::ALT) {
@@ -366,6 +389,13 @@ impl Catalog {
             let area = self.preview_content_rect(frame.area()).unwrap_or_default();
             self.linked.resize(area.width, area.height);
         }
+        if self
+            .selected_entry()
+            .is_some_and(|entry| entry.kind == Kind::Modal)
+        {
+            let area = self.preview_content_rect(frame.area()).unwrap_or_default();
+            self.modal.resize(area.height);
+        }
         let palette = Palette::for_theme(self.theme);
         frame.render_widget(
             Block::default().style(Style::default().bg(palette.background).fg(palette.text)),
@@ -421,6 +451,12 @@ impl Catalog {
                 .is_some_and(|entry| entry.kind == Kind::Bsp)
         {
             "BSP Tab divider · ↑↓ ratio · ←→ size\ns shrink/restore · Space pause · . step · n data/geometry\nF1 catalog · F2 fixture · F3 theme · Ctrl-C quit"
+        } else if self.focused
+            && self
+                .selected_entry()
+                .is_some_and(|entry| entry.kind == Kind::Modal)
+        {
+            "MODAL Shift-↑↓ or +/- height · z zoom · ←→ size\nF1 catalog · F2 fixture · F3 theme · F4 reset · Ctrl-C quit"
         } else if self.focused
             && self
                 .selected_entry()
@@ -517,7 +553,7 @@ impl Catalog {
                     Line::styled(
                         match entry.kind {
                             Kind::Settings | Kind::LinkedPanes => "  INTERACTIVE",
-                            Kind::Bsp => "  LAYOUT PRIMITIVE",
+                            Kind::Bsp | Kind::Modal => "  LAYOUT PRIMITIVE",
                             _ => "  DISPLAY WIDGET",
                         },
                         Style::default().fg(palette.muted),
@@ -572,6 +608,8 @@ impl Catalog {
                             format!("{} / {}  ", entry.id, self.diff.geometry_name())
                         } else if entry.kind == Kind::Bsp {
                             format!("{} / {}  ", entry.id, self.bsp.size_name())
+                        } else if entry.kind == Kind::Modal {
+                            format!("{} / {}  ", entry.id, self.modal.zoom_name())
                         } else if entry.kind == Kind::LinkedPanes {
                             format!("{} / {}  ", entry.id, self.linked.mode_name())
                         } else {
@@ -603,6 +641,8 @@ impl Catalog {
             let output = self.widget_output(entry, content);
             notice = if entry.kind == Kind::LinkedPanes {
                 Some(self.linked.status())
+            } else if entry.kind == Kind::Modal {
+                Some(self.modal.status())
             } else if self.animated
                 && entry.kind.supports_stream()
                 && (entry.kind != Kind::Bsp || self.notice_index.is_multiple_of(2))
@@ -813,6 +853,9 @@ impl Catalog {
             )
         } else if entry.kind == Kind::LinkedPanes {
             self.linked
+                .output(usize::from(content.width), usize::from(content.height))
+        } else if entry.kind == Kind::Modal {
+            self.modal
                 .output(usize::from(content.width), usize::from(content.height))
         } else if entry.kind == Kind::Bsp {
             self.bsp.output_with_stream(
@@ -1439,6 +1482,47 @@ mod tests {
         assert!(!catalog.focused);
         press(&mut catalog, KeyCode::Enter);
         press(&mut catalog, KeyCode::F(1));
+        assert!(!catalog.focused);
+    }
+
+    // GUARD: tests::modal_host_sizes_from_the_granted_height_and_zoom_round_trips
+    #[test]
+    fn modal_host_sizes_from_the_granted_height_and_zoom_round_trips() {
+        let shift = |catalog: &mut Catalog, code| {
+            catalog.handle(KeyEvent::new(code, KeyModifiers::SHIFT));
+        };
+        let mut catalog = Catalog::new(Options {
+            item: Kind::Modal,
+            scenario: Scenario::Long,
+            width: 48,
+            ..Options::default()
+        });
+        let buffer = render(&mut catalog, 120, 36);
+        let screen = catalog.preview_content_rect(buffer.area).unwrap().height;
+        assert!(screen < 40, "the long fixture asks for more than fits");
+        assert_eq!(catalog.modal.granted(), screen);
+        assert!(text(&buffer).contains(&format!("requested 40 / granted {screen}")));
+        press(&mut catalog, KeyCode::Enter);
+        // Plain arrows do not size; Shift-Down steps from what is on screen.
+        press(&mut catalog, KeyCode::Down);
+        assert_eq!(catalog.modal.granted(), screen);
+        shift(&mut catalog, KeyCode::Down);
+        let buffer = render(&mut catalog, 120, 36);
+        assert_eq!(catalog.modal.granted(), screen - 1);
+        assert!(preview_matches(&catalog, &buffer));
+        press(&mut catalog, KeyCode::Char('z'));
+        let buffer = render(&mut catalog, 120, 36);
+        assert_eq!(catalog.modal.granted(), screen);
+        assert!(text(&buffer).contains("modal / zoomed"));
+        press(&mut catalog, KeyCode::Char('z'));
+        render(&mut catalog, 120, 36);
+        assert_eq!(catalog.modal.granted(), screen - 1, "zoom round-trips");
+        shift(&mut catalog, KeyCode::Up);
+        assert_eq!(catalog.modal.granted(), screen);
+        press(&mut catalog, KeyCode::Char('-'));
+        press(&mut catalog, KeyCode::Char('+'));
+        assert_eq!(catalog.modal.granted(), screen, "+/- step like Shift-↑↓");
+        press(&mut catalog, KeyCode::Esc);
         assert!(!catalog.focused);
     }
 

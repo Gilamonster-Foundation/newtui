@@ -5,7 +5,7 @@ collected into a reusable Rust library.
 
 **Available in newtui:** the settings panel; sparkline, butterfly, butterfly history,
 heat meter, gauge, bar, core grid and diff display; linked pane navigation;
-ratio BSP panel geometry; the optional
+ratio BSP panel geometry; the modal height policy; the optional
 ratatui adapter; Python bindings; and the
 [component API](../src/component.rs), [view data](../src/view.rs) and
 [state explorer](../src/explore.rs).
@@ -52,6 +52,11 @@ and try shrink/restore. [Narrow geometry](widgets/generated/bsp-narrow.png),
 [Recording inputs](widgets/generated/BSP-CAPTURES.md) accompany the images.
 This delivers package F's geometry prerequisite; dashboard composition and
 Gilamonster cockpit adoption remain planned.
+
+The [modal height policy](layout.md#modal-height) decides how tall a modal
+asks to be under grow, shrink, zoom and drag, stepping from the height the
+host actually granted. Launch `just catalog --item modal` and use Shift-↑/↓
+and `z`; the [named demo](../demos/modal.gif) records the same keys.
 
 ## Linked pane navigation
 

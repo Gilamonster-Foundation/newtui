@@ -69,6 +69,7 @@ and the test are describing the same component:
 | `core_grid` | twelve independently phased busy/cooling cores, full histories and current percentages matching each last sample |
 | `diff` | unified, split and stat layouts; folded/expanded context; row windows; narrow fallback; empty and binary changes; long Unicode source with notices outside the preview |
 | `bsp` | live numeric widgets inside ratio geometry, then divider/ratio edits, exact shrink/restore, narrow/empty areas and rejected NaN edits |
+| `modal` | a modal docked on a 16-row screen growing and shrinking one row at a time from its granted height, zoom filling the screen and a second zoom restoring it, the MIN_ROWS floor, and a request taller than the screen clamped by the host |
 | `linked_panes` | host-owned old/new ASCII text in BSP geometry; unequal correspondence, gap fallback and boundary markers; cursor-driven page windows, focus-only Tab, three link modes, empty/rejected inputs and Esc cancellation |
 
 Numeric named demos run a deterministic synthetic stream every 250 ms; their
@@ -101,6 +102,15 @@ focuses the catalog preview, Tab selects a divider, up/down changes its ratio,
 preview width; F1 returns to browsing. The named `demo bsp` uses the same keys,
 with `f` for fixtures and `q` to exit. Status compares the last demo edit at the
 current viewport size; it never measures pane content or runs reflow timers.
+
+The modal demo shares `ModalPreview` with `just catalog --item modal`. Enter
+focuses the catalog preview; Shift-up/down steps the height one row from what
+is on screen, and `z` zooms and restores. `+` and `-` step too, because VHS
+cannot send a shifted arrow, so the tape uses them. Plain arrows do nothing to the
+height, because they belong to the modal's content. The preview is the modal's
+screen: its height is what the host grants, and the status reports requested
+and granted rows. The named `demo modal` uses the same keys, with `f` for
+fixtures and `q` to exit.
 
 The linked-pane demo shares actual `LinkedPanes` navigation and ASCII source
 fixtures with `just catalog --item linked_panes --width 88`. Arrow and page
