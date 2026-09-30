@@ -29,7 +29,7 @@ jobs:
       - run: cargo test -p newtui-catalog
       - run: cargo test -p newtui-corpus
       # Tool-boundary failures must preserve previous captures; no recorder install needed.
-      - run: python3 -m unittest discover -s scripts -p test_capture.py
+      - run: python3 -m unittest discover -s scripts -p 'test_*.py'
 
   clippy:
     name: Lint
