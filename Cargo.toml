@@ -23,6 +23,9 @@ description = "TUI components you can drive in isolation: each one a state machi
 repository = "https://github.com/Gilamonster-Foundation/newtui"
 keywords = ["tui", "terminal", "testing", "state-machine", "components"]
 categories = ["command-line-interface", "development-tools::testing"]
+# Demo media stays in the repo, not the crate: crates.io rejects uploads over
+# 10 MiB, and 0.1.0 first failed to publish on exactly that.
+exclude = ["demos/", "docs/logos/", "docs/widgets/generated/", "*.gif", "*.png", "*.apng"]
 
 [features]
 # The core — `Component`, `Flow`, `View`, the alphabet, the fingerprint, and
