@@ -815,9 +815,13 @@ mod tests {
             report.transitions, 0,
             "a key was applied to a machine the search never explored: {report}"
         );
-        assert!(report
-            .violations_named("selection is always in range")
-            .is_empty());
+        assert_eq!(
+            report
+                .violations_named("selection is always in range")
+                .len(),
+            0,
+            "{report}"
+        );
         match report.verdict() {
             Verdict::Incomplete { reason, violations } => {
                 assert!(
