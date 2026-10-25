@@ -58,6 +58,10 @@ Use registry releases when available. Until newtui is published, an immutable
 git revision is an independently buildable consumption seam; do not commit
 a dependency on a developer's sibling worktree or a moving branch.
 
+The suite's direction, components an agentic TUI can embed and an agent can read
+and drive, with Rust and PyO3 crates published to crates.io and PyPI, is recorded
+in [agent-friendly components](AGENT_FRIENDLY.md).
+
 ## What it is
 
 > **A TUI component is a state machine over keys. Drive it in isolation, and
