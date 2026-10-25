@@ -34,6 +34,15 @@
 exec 1>&2
 set -euo pipefail
 
+# SCOPE: the gate runs only when the push sends code. scripts/prepush-scope.sh
+# reads git's stdin and says `skip` for a branch delete or for Markdown nothing
+# reads, and `full` for everything else, including anything it cannot decide.
+# This is the one place the hook runs less than CI does: CI still runs every job
+# on every PR, so a wrong `skip` costs a red PR and never a merge.
+scope=$(scripts/prepush-scope.sh)
+echo "pre-push: $scope"
+case "$scope" in skip:*) exit 0 ;; esac
+
 if command -v just >/dev/null 2>&1; then
   just check
 else
@@ -61,7 +70,7 @@ else
   cargo llvm-cov -p newtui-corpus --summary-only --fail-under-lines 80
   scripts/check-corpus-consumers.sh
   scripts/check-python.sh
-  python3 -m unittest discover -s scripts -p test_capture.py
+  python3 -m unittest discover -s scripts -p 'test_*.py'
   cargo test --test mutations -- --nocapture
   scripts/check-lean-proofs.sh
   scripts/check-model.sh

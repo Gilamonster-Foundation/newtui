@@ -91,7 +91,7 @@ catalog-capture:
 
 # Recorder boundary checks use fake tools; real VHS remains an optional workflow.
 capture-check:
-    python3 -m unittest discover -s scripts -p test_capture.py
+    python3 -m unittest discover -s scripts -p 'test_*.py'
 
 # PyO3 remains outside the default members, so each binding command names its
 # package. That explicitness is what keeps a plain core build leaf-only.
