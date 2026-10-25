@@ -30,6 +30,7 @@ fn help_and_registry_are_available_without_a_terminal() {
             "core_grid",
             "diff",
             "bsp",
+            "modal",
             "linked_panes"
         ]
     );

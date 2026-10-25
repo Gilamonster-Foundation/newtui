@@ -70,6 +70,46 @@ rejected NaN edit. The host composes existing widget fixtures inside the returne
 rectangles and shows complete geometry status outside tiny previews. No Python
 layout binding is claimed by this Rust primitive.
 
+<!-- layout: modal -->
+## `modal` — modal height
+
+<!-- demo: modal = modal -->
+Demo: [tape](../demos/modal.tape) · [GIF](../demos/modal.gif) · [animated PNG](../demos/modal.png)
+
+A pure height policy for a modal viewport. The host reports the height it
+granted, which the screen may have clamped, and maps its keys or pointer to a
+`SizeKey`. `apply` returns the next request, or `None` when nothing changed.
+Grow and Shrink step one row from the granted height, so holding Grow at full
+height banks nothing. `To(rows)` is a drag target. All three leave zoom. Zoom
+requests `FILL`; a second zoom restores the granted height from before it. No
+request is ever below `MIN_ROWS` (4: border, one row, hint, border).
+
+```rust
+use newtui::layout::{ModalSize, SizeKey, FILL, MIN_ROWS};
+
+let mut size = ModalSize::new(8);
+let screen = 12;
+assert_eq!(size.apply(SizeKey::Grow, size.requested().min(screen)), Some(9));
+assert_eq!(size.apply(SizeKey::Zoom, 9), Some(FILL));
+assert_eq!(size.apply(SizeKey::Zoom, screen), Some(9));
+assert_eq!(size.apply(SizeKey::To(1), 9), Some(MIN_ROWS));
+assert_eq!(size.apply(SizeKey::Shrink, MIN_ROWS), None);
+```
+
+`tests/modal.rs` walks every reachable state with the explorer, on screens of
+4 to 12 rows from starting requests of 1 to 14, under grow, shrink, zoom and
+drags to 0, 1, 4 and 20 rows. No request falls below `MIN_ROWS`, and every
+grow or shrink steps from the granted height and leaves zoom. Plain tests pin
+the zoom round trip, drag flooring, and the no-op at the minimum. Each guard
+has an executed mutation in `tests/mutations.rs`.
+
+Launch `just catalog --item modal`. Enter focuses the preview; Shift-↑/↓ (or
+`+`/`-`, which the recorded tape uses) steps the height and `z` zooms and
+restores. The preview is the modal's screen, and
+the requested and granted heights are shown inside the modal and below it. The
+host has no pointer, so `To` is not reachable from the catalog. No Python
+binding is claimed for this Rust primitive.
+
 <!-- component: linked_panes -->
 ## `linked_panes` — cursor-driven correspondence
 

@@ -8,7 +8,7 @@ use std::time::Instant;
 mod fixtures;
 use fixtures::{
     notice_text, settings_seed, BspPreview, DemoStream, DiffPreview, Kind as WidgetKind,
-    LinkedPreview, Scenario, TickClock,
+    LinkedPreview, ModalPreview, Scenario, TickClock,
 };
 use newtui::components::settings_panel::SettingsPanel;
 use newtui::{ratatui_lines, Component, Flow, Key, Tone, View, WidgetOutput};
@@ -208,6 +208,7 @@ struct WidgetDemo {
     scenario: Scenario,
     diff: DiffPreview,
     bsp: BspPreview,
+    modal: ModalPreview,
     linked: LinkedPreview,
     stream: DemoStream,
     notice_index: usize,
@@ -222,6 +223,7 @@ impl WidgetDemo {
             scenario: Scenario::Normal,
             diff: DiffPreview::default(),
             bsp: BspPreview::default(),
+            modal: ModalPreview::default(),
             linked: LinkedPreview::default(),
             stream: DemoStream::default(),
             notice_index: 0,
@@ -256,10 +258,7 @@ impl WidgetDemo {
                 _ => {}
             }
         }
-        if matches!(
-            self.kind,
-            WidgetKind::Diff | WidgetKind::Bsp | WidgetKind::LinkedPanes
-        ) {
+        if self.is_host_driven() {
             match event.code {
                 KeyCode::Left | KeyCode::Right
                     if self.kind == WidgetKind::Diff
@@ -278,12 +277,14 @@ impl WidgetDemo {
                     };
                     self.diff = DiffPreview::default();
                     self.bsp = BspPreview::default();
+                    self.modal = ModalPreview::new(self.scenario);
                     self.linked = LinkedPreview::new(self.scenario);
                     self.notice_index = 0;
                 }
                 KeyCode::Char('r') | KeyCode::F(4) => {
                     self.diff = DiffPreview::default();
                     self.bsp = BspPreview::default();
+                    self.modal = ModalPreview::new(self.scenario);
                     self.linked = LinkedPreview::new(self.scenario);
                     self.notice_index = 0;
                     self.at = 0;
@@ -296,6 +297,9 @@ impl WidgetDemo {
                     if let Some(key) = map_key(event) {
                         if self.kind == WidgetKind::Bsp {
                             self.bsp.handle(key);
+                        } else if self.kind == WidgetKind::Modal {
+                            self.modal
+                                .handle(key, event.modifiers.contains(KeyModifiers::SHIFT));
                         } else if self.kind == WidgetKind::LinkedPanes {
                             self.linked.handle(key);
                         } else {
@@ -357,6 +361,12 @@ impl WidgetDemo {
                     self.bsp.size_name(),
                     self.scenario.name()
                 ))
+            } else if self.kind == WidgetKind::Modal {
+                Line::from(format!(
+                    "modal size / {} / {} · {width} columns",
+                    self.modal.zoom_name(),
+                    self.scenario.name()
+                ))
             } else if self.kind == WidgetKind::LinkedPanes {
                 Line::from(format!(
                     "{} / {} · {width} columns",
@@ -391,14 +401,12 @@ impl WidgetDemo {
             layout[0],
         );
         frame.render_widget(Paragraph::new(lines).block(self.chart_block()), chart_area);
-        if matches!(
-            self.kind,
-            WidgetKind::Diff | WidgetKind::Bsp | WidgetKind::LinkedPanes
-        ) || self.kind.supports_stream()
-        {
+        if self.is_host_driven() || self.kind.supports_stream() {
             frame.render_widget(
                 Paragraph::new(if self.kind == WidgetKind::LinkedPanes {
                     self.linked.status()
+                } else if self.kind == WidgetKind::Modal {
+                    self.modal.status()
                 } else if self.kind == WidgetKind::Bsp {
                     format!(
                         "{}\n{}",
@@ -422,6 +430,8 @@ impl WidgetDemo {
                 "←→ size · ↑↓ rows · Shift-←→ columns · g layout · e context\nf fixture · n notice · Home scroll reset · r reset · q quit"
             } else if self.kind == WidgetKind::Bsp {
                 "Tab divider · ↑↓ ratio · s shrink/restore · Space pause · . step\n←→ size · f fixture · r reset · x reject NaN · q quit"
+            } else if self.kind == WidgetKind::Modal {
+                "Shift-↑↓ or +/- height from the granted rows · z zoom/restore\n←→ size · f fixture · r reset · q quit"
             } else if self.kind == WidgetKind::LinkedPanes {
                 "↑↓/Pg/Home/End cursor · Tab focus · l mode · Esc cancel\n> cursor · = mapped row · @ window top · ←→ size · f fixture · r reset · q quit"
             } else if self.kind.supports_stream() {
@@ -454,6 +464,8 @@ impl WidgetDemo {
             compact
         } else if self.kind == WidgetKind::LinkedPanes {
             self.linked.output(width, 16)
+        } else if self.kind == WidgetKind::Modal {
+            self.modal.output(width, 16)
         } else if self.kind == WidgetKind::Bsp {
             self.bsp
                 .output_with_stream(self.scenario, width, 16, Some(&self.stream))
@@ -476,10 +488,7 @@ impl WidgetDemo {
     }
 
     fn layout(&self, area: Rect, chart_height: u16) -> [Rect; 4] {
-        let is_rich = matches!(
-            self.kind,
-            WidgetKind::Diff | WidgetKind::Bsp | WidgetKind::LinkedPanes
-        ) || self.kind.supports_stream();
+        let is_rich = self.is_host_driven() || self.kind.supports_stream();
         let host = centered(
             area,
             if is_rich { 106 } else { 42 },
@@ -518,6 +527,14 @@ impl WidgetDemo {
         )
     }
 
+    /// Pieces whose presentation state the host keeps between key presses.
+    fn is_host_driven(&self) -> bool {
+        matches!(
+            self.kind,
+            WidgetKind::Diff | WidgetKind::Bsp | WidgetKind::Modal | WidgetKind::LinkedPanes
+        )
+    }
+
     fn chart_block(&self) -> Block<'static> {
         Block::default()
             .borders(Borders::ALL)
@@ -540,6 +557,7 @@ pub(crate) fn assert_recorded_demos_render_content() {
         "core_grid",
         "diff",
         "bsp",
+        "modal",
         "linked_panes",
     ] {
         let Some(Demo::Widget(mut demo)) = Demo::named(name) else {
@@ -555,7 +573,7 @@ pub(crate) fn assert_recorded_demos_render_content() {
             // what exercises the release artifact instead of a roomier fiction.
             let recorder_height = if demo.kind.supports_stream() {
                 height + if demo.kind == WidgetKind::Bsp { 9 } else { 8 }
-            } else if matches!(name, "diff" | "bsp" | "linked_panes") {
+            } else if matches!(name, "diff" | "bsp" | "modal" | "linked_panes") {
                 28
             } else if height == 1 {
                 6
@@ -565,7 +583,9 @@ pub(crate) fn assert_recorded_demos_render_content() {
             let frame_area = Rect::new(
                 0,
                 0,
-                if matches!(name, "diff" | "bsp" | "linked_panes") || demo.kind.supports_stream() {
+                if matches!(name, "diff" | "bsp" | "modal" | "linked_panes")
+                    || demo.kind.supports_stream()
+                {
                     120
                 } else {
                     64

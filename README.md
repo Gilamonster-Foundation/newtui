@@ -22,7 +22,7 @@ default.
 ## Status
 
 The library ships settings and linked-pane components, seven chart widgets,
-a diff display, BSP pane geometry, the state explorer, an optional
+a diff display, BSP pane geometry, a modal height policy, the state explorer, an optional
 [ratatui adapter](docs/renderer-compatibility.md) and Python bindings. The catalog
 distinguishes these from included implementation sources and planned components.
 Numeric demos show changing values and flowing histories; every shipped piece
